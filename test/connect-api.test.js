@@ -13,14 +13,14 @@ function makeDb() {
     { _id:new ObjectId(), username:"bob", usernameNormalized:"bob", displayName:"Bob", tenantId:"tenant-1", status:"active", role:"member" },
     { _id:new ObjectId(), username:"charlie", usernameNormalized:"charlie", displayName:"Charlie", tenantId:"tenant-1", status:"active", role:"member" }
   ];
-  const senderToken = randomBytes(32).toString("base64url"), recipientToken = randomBytes(32).toString("base64url");
+  const senderToken = randomBytes(32).toString("base64url"), recipientToken = randomBytes(32).toString("base64url"), thirdToken = randomBytes(32).toString("base64url");
   const sessions = [
     { _id:new ObjectId(), tokenHash:hashToken(senderToken), userId:users[0]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() },
-    { _id:new ObjectId(), tokenHash:hashToken(recipientToken), userId:users[1]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() }
+    { _id:new ObjectId(), tokenHash:hashToken(recipientToken), userId:users[1]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() },\n    { _id:new ObjectId(), tokenHash:hashToken(thirdToken), userId:users[2]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() }
   ];
   const threadId = new ObjectId();
   const thread = { _id:threadId, tenantId:"tenant-1", type:"group", title:"Project team", participantIds:[users[0]._id,users[1]._id], createdBy:users[0]._id, adminIds:[users[0]._id], messageCount:0, createdAt:new Date(), updatedAt:new Date() };
-  const messages=[], receipts=[], outbox=[], audits=[], limits=new Map();
+  const messages=[], receipts=[], outbox=[], audits=[], invites=[], joinRequests=[], limits=new Map();
   const collections = {
     users: {
       findOne: async filter => users.find(user =>
@@ -62,6 +62,38 @@ function makeDb() {
         (!filter._id?.$lte||String(message._id)<=String(filter._id.$lte))
       ))
     },
+    groupInvites: {
+      insertOne: async invite => {invite._id=new ObjectId();invites.push(invite);return {insertedId:invite._id};},
+      findOne: async filter => invites.find(invite=>
+        (!filter._id||String(invite._id)===String(filter._id))&&
+        (!filter.tokenHash||invite.tokenHash===filter.tokenHash)&&
+        (!filter.tenantId||invite.tenantId===filter.tenantId)&&
+        (!filter.threadId||String(invite.threadId)===String(filter.threadId))&&
+        (!("revokedAt" in filter)||invite.revokedAt===filter.revokedAt)&&
+        (!filter.expiresAt?.$gt||invite.expiresAt>filter.expiresAt.$gt)
+      )||null,
+      updateOne: async (filter,update) => {
+        const invite=invites.find(item=>String(item._id)===String(filter._id)&&(!filter.uses?.$lt||item.uses<filter.uses.$lt)&&(!filter.revokedAt||item.revokedAt===filter.revokedAt));
+        if(!invite)return {modifiedCount:0};
+        if(update.$inc)for(const [key,value] of Object.entries(update.$inc))invite[key]=(invite[key]||0)+value;
+        if(update.$set)Object.assign(invite,update.$set);
+        return {modifiedCount:1};
+      },
+      find: filter => cursor(invites.filter(invite=>invite.tenantId===filter.tenantId&&String(invite.threadId)===String(filter.threadId)&&invite.revokedAt===null&&invite.expiresAt>filter.expiresAt.$gt))
+    },
+    groupJoinRequests: {
+      insertOne: async request => {request._id=new ObjectId();joinRequests.push(request);return {insertedId:request._id};},
+      findOne: async filter => joinRequests.find(item=>
+        (!filter._id||String(item._id)===String(filter._id))&&
+        (!filter.tenantId||item.tenantId===filter.tenantId)&&
+        (!filter.threadId||String(item.threadId)===String(filter.threadId))&&
+        (!filter.inviteId||String(item.inviteId)===String(filter.inviteId))&&
+        (!filter.userId||String(item.userId)===String(filter.userId))&&
+        (!filter.status||item.status===filter.status)
+      )||null,
+      find: filter => cursor(joinRequests.filter(item=>item.tenantId===filter.tenantId&&String(item.threadId)===String(filter.threadId)&&item.status===filter.status)),
+      updateOne: async (filter,update) => {const item=joinRequests.find(row=>String(row._id)===String(filter._id)&&row.status===filter.status);if(!item)return {modifiedCount:0};Object.assign(item,update.$set);return {modifiedCount:1};}
+    },
     messageReceipts: {
       updateOne: async (filter,update) => {
         let row=receipts.find(item=>item.tenantId===filter.tenantId&&String(item.messageId)===String(filter.messageId)&&String(item.userId)===String(filter.userId));
@@ -85,7 +117,7 @@ function makeDb() {
     auditEvents: { insertOne: async event => {audits.push(event);return {insertedId:new ObjectId()};} }
   };
   function cursor(items){return {sort(){return this;},limit(){return this;},toArray:async()=>items};}
-  return { users, sessions, thread, messages, receipts, senderToken, recipientToken, threadId, collection:name=>collections[name] };
+  return { users, sessions, thread, messages, receipts, invites, joinRequests, senderToken, recipientToken, thirdToken, threadId, collection:name=>collections[name] };
 }
 async function invoke(db, token, method, url, body={}) {
   const headers={};
@@ -126,4 +158,22 @@ test("group administration authorizes member changes and admin promotion",async(
   const removed=await invoke(db,db.recipientToken,"DELETE","/api/threads/"+db.threadId+"/members/"+db.users[2]._id);
   assert.equal(removed.status,200);
   assert.ok(!db.thread.participantIds.some(id=>String(id)===String(db.users[2]._id)));
+});
+
+test("group invite token requires approval and admin approval joins the member",async()=>{
+  const db=makeDb();
+  const created=await invoke(db,db.senderToken,"POST","/api/threads/"+db.threadId+"/invites",{expiresInHours:24,maxUses:2,requiresApproval:true});
+  assert.equal(created.status,201);
+  assert.ok(created.body.invite.token);
+  const joined=await invoke(db,db.thirdToken,"POST","/api/group-invites/"+created.body.invite.token+"/join");
+  assert.equal(joined.status,202);
+  assert.equal(joined.body.status,"pending");
+  assert.equal(db.thread.participantIds.some(id=>String(id)===String(db.users[2]._id)),false);
+  const listed=await invoke(db,db.senderToken,"GET","/api/threads/"+db.threadId+"/join-requests");
+  assert.equal(listed.status,200);
+  const requestId=listed.body.requests[0].id;
+  const approved=await invoke(db,db.senderToken,"PATCH","/api/threads/"+db.threadId+"/join-requests/"+requestId,{decision:"approve"});
+  assert.equal(approved.status,200);
+  assert.equal(db.thread.participantIds.some(id=>String(id)===String(db.users[2]._id)),true);
+  assert.equal(db.invites[0].uses,1);
 });

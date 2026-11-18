@@ -41,7 +41,7 @@ function makeDb() {
       findOne: async filter => sessions.find(session=>session.tokenHash===filter.tokenHash&&session.expiresAt>filter.expiresAt.$gt)||null
     },
     threads: {
-      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&thread.participantIds.some(id=>String(id)===String(filter.participantIds))?thread:null,
+      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&(!filter.participantIds||thread.participantIds.some(id=>String(id)===String(filter.participantIds)))?thread:null,
       updateOne: async (filter,update) => {
         if(String(filter._id)!==String(thread._id))return {modifiedCount:0};
         if(update.$set)Object.assign(thread,update.$set);

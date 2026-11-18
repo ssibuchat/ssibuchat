@@ -240,3 +240,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - CI run [44361477089](https://github.com/ssibuchat/ssibuchat/actions/runs/44361477089) executed 42 tests: 41 passed, 1 failed. The new email-change end-to-end integration test passed, including confirmation and previous-address notification.
 - The remaining failure was the Commerce projection test: the previous correction added inventory defaults to the input fixture rather than asserting the server-generated defaults in the expected projection. The assertion is now corrected so the input omits inventory fields and the expected result includes `trackInventory: false` and `stockQuantity: 0`.
 - Correction commit: `0878ae3528160c88f2850e51a6a2c6765dc0a651`. A full CI run for this exact head is still pending; no passing status is claimed for the corrected head.
+
+
+## Corrected Phase 1 / Commerce CI acceptance — 2026-11-18
+
+- Corrected branch head `198a52b3399e1ddcda01ef7b7693359136a96a29` passed GitHub Actions [run 44361648396](https://github.com/ssibuchat/ssibuchat/actions/runs/44361648396).
+- `npm ci`: passed.
+- `npm test`: **42 passed, 0 failed**, including the verified email-change workflow and product inventory-default projection.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Dependency advisory report step: completed; the development-only picomatch advisory remains documented and unsuppressed.
+- Vite production build: passed.
+- This closes the code-and-CI portion of this email-change increment. It does not close all Phase 1 acceptance: passkeys, full security notifications, admin audit UI, staging/provider verification and browser E2E remain open.

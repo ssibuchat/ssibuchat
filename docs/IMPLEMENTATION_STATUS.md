@@ -259,3 +259,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - API serialization allowlists event ID, actor ID, action, target and timestamp; it does not return arbitrary audit documents or credentials.
 - Added an admin UI for viewing recent audit events and tests for tenant isolation, field allowlisting, result bounds and non-admin denial.
 - CI for this new audit-interface increment is pending; the earlier 42/42 pass does not cover these latest changes.
+
+
+## Phase 1 administrative audit CI acceptance — 2026-11-18
+
+- GitHub Actions [run 44362043483](https://github.com/ssibuchat/ssibuchat/actions/runs/44362043483) passed on the admin-audit implementation head.
+- `npm ci`: passed.
+- `npm test`: **44 passed, 0 failed**, including tenant-scoped audit API authorization, bounded result limits and field allowlisting.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Vite production build: passed.
+- This closes the code-and-CI portion of the bounded independent-admin audit feed. It does not replace the broader platform governance, immutable audit retention, cross-tenant oversight, export or deletion acceptance criteria.

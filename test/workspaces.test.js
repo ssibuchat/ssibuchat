@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 import { routeWorkspaces } from "../server/workspaces.js";
 
+process.env.SSIBUCHAT_SESSION_SECRET = "test-session-pepper-for-workspace-integration";
+
 function makeDb() {
   const owner={_id:new ObjectId(),username:"owner",usernameNormalized:"owner",displayName:"Owner"};
   const editor={_id:new ObjectId(),username:"editor",usernameNormalized:"editor",displayName:"Editor"};

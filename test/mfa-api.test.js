@@ -30,6 +30,12 @@ function makeDb(user, challenge) {
           user.recoveryCodeHashes = user.recoveryCodeHashes.filter(code => code !== update.$pull.recoveryCodeHashes);
           return { modifiedCount: before === user.recoveryCodeHashes.length ? 0 : 1 };
         }
+        if (update.$set?.lastMfaTotpStep !== undefined) {
+          const step = update.$set.lastMfaTotpStep;
+          if (user.lastMfaTotpStep !== undefined && user.lastMfaTotpStep >= step) return { modifiedCount: 0 };
+          user.lastMfaTotpStep = step;
+          return { modifiedCount: 1 };
+        }
         return { modifiedCount: 0 };
       }
     },
@@ -87,4 +93,19 @@ test("invalid MFA challenge code does not create a session or consume the challe
   assert.equal(result.status, 401);
   assert.equal(f.db.sessions.length, 0);
   assert.equal(f.challenge.usedAt, null);
+});
+
+test("the same TOTP time-step cannot authorize two distinct login challenges", async () => {
+  const f = fixture();
+  const code = totpAt(f.secret);
+  const first = await invoke(f.db, f.challengeToken, code);
+  assert.equal(first.status, 200);
+  const secondToken = randomBytes(32).toString("base64url");
+  f.challenge._id = "challenge-2";
+  f.challenge.tokenHash = hashToken(secondToken);
+  f.challenge.usedAt = null;
+  const second = await invoke(f.db, secondToken, code);
+  assert.equal(second.status, 401);
+  assert.equal(second.body.error, "mfa_code_already_used");
+  assert.equal(f.db.sessions.length, 1);
 });

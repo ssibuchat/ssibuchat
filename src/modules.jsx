@@ -63,7 +63,8 @@ export default function ModuleWorkspace({ active, user }) {
     e.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
       const body = { ...form };
-      if (["products"].includes(resource)) body.priceMinor = Number(body.priceMinor);
+      if (resource === "orders") body.items = [{ productId: body.productId, quantity: Number(body.quantity || 1) }];
+      if (resource === "products") { body.priceMinor = Number(body.priceMinor); body.status = body.status || "active"; }
       if (resource === "finance") body.amountMinor = Number(body.amountMinor);
       if (resource === "media") body.sizeBytes = Number(body.sizeBytes || 0);
       await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });

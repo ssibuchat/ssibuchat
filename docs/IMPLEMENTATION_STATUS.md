@@ -28,7 +28,7 @@
 
 A draft PR adds conversation-membership authorization, group unread-count correction, role restrictions for broadcast, authenticated peer lookup, PTU MAC enforcement of the existing `demoDataEnabled` tester switch, MAC-controlled public demo password hints, and removal of plaintext password fields from newly seeded account documents.
 
-The PR is **not merged** and GitHub currently reports it as not mergeable. PTU `main` and production have not been changed. No runtime test or PTU build has been performed.
+The PR is **not merged**. GitHub currently reports the draft PR as mergeable/clean, but no PTU build, test or provider verification has been run. PTU `main` and production have not been changed. No runtime test or PTU build has been performed.
 
 ## Not yet delivered
 

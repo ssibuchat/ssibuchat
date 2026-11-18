@@ -99,3 +99,14 @@ The independent product must never call PTU MAC to decide whether an independent
 ## 7. Audit limitations
 
 This audit is source-level. It does not prove the state of live production accounts, Vercel environment variables, MongoDB Atlas network rules/indexes/backups, provider webhook settings, storage buckets, WebRTC/TURN infrastructure or actual user experience. Those require authorized runtime checks and test credentials; no secrets should be pasted into chat.
+
+
+## 8. Independent implementation delta (2026-11-18)
+
+The independent repository now has an implementation branch and draft PR with the following delivered foundations: independent account/session auth, independent tester policy, fail-closed origin validation, persistent auth throttling, Connect direct/group threads and message history, idempotent message writes with retry-repairable outbox events, Work workspace/project/task/calendar records, Commerce business/product/draft-order records, immutable Finance bookkeeping records, Media metadata records, per-user dashboard preferences, explicit AI consent/provider adapter, responsive pillar UI, security headers, tests and operations documentation.
+
+These changes are not merged to `main` or promoted to production. The validated CI head before later follow-on changes passed 14 tests and the production build; later commits must pass their own checks. Production dependencies audited clean on that validated head, while four high-severity dev-toolchain advisories through picomatch <=4.0.7 remain unresolved upstream.
+
+The independent implementation does not yet provide production-complete payments, wallet custody, binary media storage, E2EE, WebRTC/TURN, push delivery, shared cross-user workspaces, complete AI retrieval/governance, MFA/recovery, or full export/deletion and operations controls. The implementation roadmap is the authoritative live checklist for those remaining items.
+
+The PTU security branch remains a draft PR. PTU main and production have not been modified by that PR. PTU tests/build and the live Africa's Talking callback remain unverified.

@@ -76,3 +76,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - A retry after a partial message write repairs thread summary/count and upserts the corresponding outbox event instead of returning early and silently losing the event.
 - Added a unique outbox identity index to prevent duplicate accepted-message events.
 - The new retry/outbox correction is committed after the last completed CI run and is awaiting its own validation.
+
+
+## Latest follow-on security and UX changes
+- Added rate limits to module writes, workspace preference changes, AI consent/chat, thread creation and message sends.
+- Added comma-separated participant entry for creating group conversations in the Connect UI.
+- Added production CSP, HSTS, frame, referrer, permissions and cross-origin opener headers in Vercel configuration.
+- These latest rate-limit and header/UI changes require the current PR head's CI and preview checks before approval.

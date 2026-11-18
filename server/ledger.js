@@ -44,7 +44,7 @@ export async function routeLedger(req,res,db,principal,path){
       if(!account)return json(res,404,{ok:false,error:"ledger_account_not_found_or_currency_mismatch"});
       debit+=debitMinor;credit+=creditMinor;
       if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit))return json(res,400,{ok:false,error:"journal_total_out_of_range"});
-      entries.push({accountId,code:account.code,name:account.name,debitMinor,creditMinor});
+      entries.push({accountId,code:account.code,name:account.name,type:account.type,debitMinor,creditMinor});
     }
     if(debit<=0||debit!==credit)return json(res,400,{ok:false,error:"journal_debits_must_equal_credits"});
     const row={tenantId:principal.tenantId,ownerId:principal._id,createdBy:principal._id,currency,memo,idempotencyKey:key,totalDebitMinor:debit,totalCreditMinor:credit,entries,status:"posted",createdAt:now()};
@@ -60,10 +60,10 @@ export async function routeLedger(req,res,db,principal,path){
     const rows=await db.collection("journalEntries").aggregate([
       {$match:{tenantId:principal.tenantId,ownerId:principal._id,status:"posted"}},
       {$unwind:"$entries"},
-      {$group:{_id:{accountId:"$entries.accountId",code:"$entries.code",name:"$entries.name",currency:"$currency"},debits:{$sum:"$entries.debitMinor"},credits:{$sum:"$entries.creditMinor"}}},
+      {$group:{_id:{accountId:"$entries.accountId",code:"$entries.code",name:"$entries.name",type:"$entries.type",currency:"$currency"},debits:{$sum:"$entries.debitMinor"},credits:{$sum:"$entries.creditMinor"}}},
       {$sort:{"_id.code":1}}
     ]).toArray();
-    return json(res,200,{ok:true,accounts:rows.map(row=>({accountId:String(row._id.accountId),code:row._id.code,name:row._id.name,currency:row._id.currency,debitsMinor:row.debits,creditsMinor:row.credits,netMinor:row.debits-row.credits}))});
+    return json(res,200,{ok:true,accounts:rows.map(row=>({accountId:String(row._id.accountId),code:row._id.code,name:row._id.name,currency:row._id.currency,debitsMinor:row.debits,creditsMinor:row.credits,netMinor:row._id.type==="asset"||row._id.type==="expense"?row.debits-row.credits:row.credits-row.debits}))});
   }
   const reverse=path.match(/^\/api\/finance\/ledger\/journals\/([a-f0-9]{24})\/reverse$/i);
   if(reverse&&req.method==="POST"){

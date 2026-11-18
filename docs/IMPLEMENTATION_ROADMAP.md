@@ -34,10 +34,10 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [ ] Account email verification, password recovery, passkeys, device/session management and security notifications.
 - [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification and disable/revocation flow (automated primitive tests; API integration acceptance pending).
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
-- [x] GitHub Actions CI: 14 unit tests passed, Vite build passed on validated commit `bfc81f4d5279aedc41b240d0dab5b2842432bba0`.
+- [x] GitHub Actions CI: latest lockfile-driven run [44353196457](https://github.com/ssibuchat/ssibuchat/actions/runs/44353196457) passed npm ci, 19 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
-- [ ] Commit a deterministic package lockfile and switch CI/release installs to `npm ci`.
-- [ ] Resolve/reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them.
+- [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
+- [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.
 - [ ] Add lint, typecheck, API integration, browser E2E, accessibility and load tests.
 - [x] Verify current branch head `bdc8bdae3b19749e03199e410fbc5094a10a921f`: 15 tests passed, production build passed, and production dependency audit found zero vulnerabilities.
 - [ ] WCAG 2.2 AA audit, keyboard navigation, screen-reader checks, contrast, focus management and reduced-motion support.

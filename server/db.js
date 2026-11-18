@@ -20,6 +20,7 @@ export async function ensureIndexes(db) {
     db.collection("threads").createIndex({ tenantId: 1, participantIds: 1, updatedAt: -1 }),
     db.collection("messages").createIndex({ tenantId: 1, threadId: 1, createdAt: -1 }),
     db.collection("messages").createIndex({ tenantId: 1, senderId: 1, idempotencyKey: 1 }, { unique: true, sparse: true }),
+    db.collection("outboxEvents").createIndex({ tenantId: 1, type: 1, aggregateId: 1 }, { unique: true, partialFilterExpression: { aggregateId: { $type: "objectId" } } }),
     db.collection("memberships").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
     db.collection("auditEvents").createIndex({ tenantId: 1, createdAt: -1 }),
     ...["workspaces","projects","tasks","calendarEvents","businesses","products","orders","financeRecords","mediaAssets"].map(name => db.collection(name).createIndex({ tenantId: 1, ownerId: 1, updatedAt: -1 })),

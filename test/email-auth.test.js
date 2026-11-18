@@ -66,6 +66,9 @@ test("email verification and password recovery tokens are emailed, single-use an
     const reset=await invoke(db,null,"POST","/api/auth/password-reset/confirm",{token:resetToken,password:"A-new-strong-password-2026"});
     assert.equal(reset.status,200);
     assert.equal(reset.body.signedOutEverywhere,true);
+    assert.equal(reset.body.securityNoticeSent,true);
+    assert.equal(emails.length,3);
+    assert.match(emails[2].subject,/password was reset/i);
     assert.equal(db.sessions.length,0);
     assert.equal(await verifyPassword("A-new-strong-password-2026",db.user.passwordHash),true);
     const resetReplay=await invoke(db,null,"POST","/api/auth/password-reset/confirm",{token:resetToken,password:"Another-new-password-2026"});

@@ -36,10 +36,11 @@ The independent foundation branch now includes separate identity and tester cont
 - Media metadata records (not file uploads).
 - Per-user dashboard preferences and explicit AI consent/provider adapter.
 - MongoDB-backed rate limiting, origin validation and production browser security headers.
+- Optional TOTP MFA with encrypted secrets, single-use recovery codes and login challenge enforcement.
 
 ### Not production complete
 
-Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, MFA/recovery, email verification, full AI retrieval/governance and production operations remain incomplete. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
+Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, email verification, passkeys, full AI retrieval/governance and production operations remain incomplete. MFA API integration acceptance and account-facing setup UI are still required before broad rollout. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
 
 ## Local development
 

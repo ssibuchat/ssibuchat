@@ -32,8 +32,14 @@ Configure `MONGODB_URI`, `MONGODB_DB`, `SSIBUCHAT_BOOTSTRAP_SECRET`, and `SSIBUC
 - `PATCH /api/admin/testers/access`
 - `GET /api/threads`
 - `POST /api/messages`
+- `GET|PUT /api/workspace/preferences`
+- `GET|PUT /api/ai/consent`, `POST /api/ai/chat`
+- `GET|POST /api/modules/workspaces|projects|tasks|events`
+- `GET|POST /api/modules/businesses|products|orders`
+- `GET|POST /api/modules/finance|media`
+- `PATCH|DELETE /api/modules/{module}/{id}` for mutable non-financial records.
 
-The current Connect API is a foundation, not yet a complete chat service. Thread creation, message history, group fan-out, receipts, attachments, event consumers and push transport remain roadmap work.
+The Work/Commerce/Finance/Media endpoints are owner-scoped foundational records. Orders are draft snapshots only; finance entries are immutable bookkeeping records; media stores metadata only. AI calls require explicit opt-in and configured `SSIBUCHAT_AI_BASE_URL`, `SSIBUCHAT_AI_API_KEY`, and `SSIBUCHAT_AI_MODEL`. None of these foundations imply payment settlement, wallet custody, binary media uploads or complete AI governance.
 
 ## Operational limitations to close before launch
 - Add distributed rate limiting and login abuse detection.
@@ -48,3 +54,7 @@ The current Connect API is a foundation, not yet a complete chat service. Thread
 
 ## Safe rollout
 Preview → automated tests → staging data → backup/restore rehearsal → security review → production canary → monitored gradual rollout. PTU-hosted SsibuChat is not cut over or modified by independent deployment.
+
+
+## Dual-deployment release isolation
+PTU-hosted SsibuChat remains on `payteamuniversity/payteam`, preserving PTU authentication and MAC as the authority for PTU tester access. Independent SsibuChat remains on `ssibuchat/ssibuchat`, with its own MongoDB database, session secret, bootstrap secret, admin and tester policy. Use separate branches, previews, environment variables and rollback procedures. A change to one repository must not trigger a deployment or secret change in the other.

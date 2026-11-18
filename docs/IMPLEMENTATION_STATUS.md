@@ -105,3 +105,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - The full development dependency audit continues to report four high-severity picomatch-related findings; production dependencies remain clean. Upstream currently lists picomatch versions through 4.0.7 as affected without a confirmed patched release.
 
 - PTU rate limiting was extracted into a testable MongoDB-backed helper; the new tests cover threshold enforcement, actor hashing and invalid configuration.
+
+
+## Phase 1 execution update — 2026-11-18
+
+- Added independent TOTP MFA enrollment, confirmation, login challenge, disable and session-revocation paths.
+- MFA TOTP secrets use AES-256-GCM with a separate SSIBUCHAT_MFA_ENCRYPTION_KEY; recovery codes are stored as keyed hashes and consumed once.
+- Added three focused MFA tests, including the RFC 6238 SHA-1 reference vector and authenticated-encryption tamper rejection.
+- Committed lockfile v3 and changed CI from npm install to npm ci. Latest lockfile-driven GitHub Actions run [44353196457](https://github.com/ssibuchat/ssibuchat/actions/runs/44353196457) passed: 19 tests, 0 failures; production audit found 0 vulnerabilities; Vite build passed.
+- Full dependency audit still reports four high-severity development-toolchain findings rooted in picomatch 4.0.7. The published advisory currently lists no patched release; no unsafe override or audit suppression was applied. Production dependency audit remains clean.
+- MFA API/database integration tests, account-facing MFA setup UI, email verification, recovery workflow, and broader identity/tenant governance remain open acceptance work.
+- PTU MAC authority and independent tester-policy boundary remain unchanged. No merge to the default branch and no production deployment occurred.

@@ -58,3 +58,10 @@ Preview → automated tests → staging data → backup/restore rehearsal → se
 
 ## Dual-deployment release isolation
 PTU-hosted SsibuChat remains on `payteamuniversity/payteam`, preserving PTU authentication and MAC as the authority for PTU tester access. Independent SsibuChat remains on `ssibuchat/ssibuchat`, with its own MongoDB database, session secret, bootstrap secret, admin and tester policy. Use separate branches, previews, environment variables and rollback procedures. A change to one repository must not trigger a deployment or secret change in the other.
+
+
+## Connect outbox worker operations
+
+The independent deployment includes an authenticated outbox worker endpoint at /api/cron/outbox. It requires the Vercel CRON_SECRET environment variable and accepts Vercel's Authorization: Bearer header. Do not enable a production schedule until the project's Vercel plan and permitted cadence are confirmed. Hobby plans are limited to once-daily cron execution; Pro/Enterprise support per-minute schedules. The current repository intentionally does not register a cron schedule until this external setting is verified.
+
+The worker claims outbox records with short leases, fans accepted messages into idempotent deliveryJobs, retries failures with exponential backoff and dead-letters after ten attempts. This is an internal queueing foundation, not a live notification provider: deliveryJobs remain queued until a separately configured and tested delivery consumer/provider is added. Configure CRON_SECRET only in the independent SsibuChat deployment, never reuse PTU credentials.

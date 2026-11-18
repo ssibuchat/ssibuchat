@@ -59,6 +59,8 @@ test("buyer/merchant order separation, inventory reservation and sandbox payment
   assert.equal(checkout.status,201);assert.equal(db.product.stockQuantity,3);
   const settled=await invoke(db,buyer,"POST","/api/commerce/payments/"+checkout.body.paymentIntent.id+"/sandbox-settle",{});
   assert.equal(settled.status,200);assert.equal(db.orders[0].paymentStatus,"paid");
+  const settleReplay=await invoke(db,buyer,"POST","/api/commerce/payments/"+checkout.body.paymentIntent.id+"/sandbox-settle",{});
+  assert.equal(settleReplay.status,200);assert.equal(settleReplay.body.idempotent,true);
   const merchantUpdate=await invoke(db,merchant,"PATCH","/api/commerce/orders/"+created.body.order.id+"/status",{status:"processing"});
   assert.equal(merchantUpdate.status,200);assert.equal(db.orders[0].status,"processing");
   const buyerInventory=await invoke(db,buyer,"PATCH","/api/commerce/products/"+db.productId+"/inventory",{stockQuantity:99,trackInventory:true});

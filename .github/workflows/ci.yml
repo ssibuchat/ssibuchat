@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -17,24 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - name: Export generated npm lockfile for deterministic dependency pinning
-        uses: actions/upload-artifact@v4
-        with:
-          name: ssibuchat-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-      - name: Persist generated lockfile to this repository's pull-request branch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "build(deps): add deterministic npm lockfile"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+      - run: npm ci
       - run: npm test
       - name: Audit production dependencies
         run: npm audit --omit=dev

@@ -269,3 +269,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Production dependency audit: passed with zero production dependency vulnerabilities.
 - Vite production build: passed.
 - This closes the code-and-CI portion of the bounded independent-admin audit feed. It does not replace the broader platform governance, immutable audit retention, cross-tenant oversight, export or deletion acceptance criteria.
+
+
+## Phase 1 security notification CI acceptance — 2026-11-18
+
+- GitHub Actions [run 44362314802](https://github.com/ssibuchat/ssibuchat/actions/runs/44362314802) passed on the security-notification implementation head.
+- `npm ci`: passed.
+- `npm test`: **44 passed, 0 failed**, including password-reset security notification assertions and admin audit interface tests.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Vite production build: passed.
+- Password reset and MFA enable/disable now attempt post-event security notices to verified email addresses; failures are non-fatal and the event remains audited. Device-aware sign-in alerts and notification preferences remain open.

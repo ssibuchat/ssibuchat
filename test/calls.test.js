@@ -9,7 +9,7 @@ function makeDb(){
   const userA=new ObjectId(),userB=new ObjectId(),threadId=new ObjectId(),thread={_id:threadId,tenantId:"tenant-1",participantIds:[userA,userB],type:"direct"};
   const calls=[],participants=[],signals=[],limits=new Map();
   const collections={
-    threads:{findOne:async filter=>String(filter._id)===String(threadId)&&filter.tenantId==="tenant-1"&&filter.participantIds.some(id=>String(id)===String(filter.participantIds))?thread:thread},
+    threads:{findOne:async filter=>String(filter._id)===String(threadId)&&filter.tenantId==="tenant-1"&&thread.participantIds.some(id=>String(id)===String(filter.participantIds))?thread:null},
     calls:{
       insertOne:async row=>{row._id=new ObjectId();calls.push(row);return {insertedId:row._id};},
       find:filter=>cursor(calls.filter(row=>row.tenantId===filter.tenantId&&row.participantIds.some(id=>String(id)===String(filter.participantIds))&&filter.status.$in.includes(row.status)&&row.expiresAt>filter.expiresAt.$gt)),

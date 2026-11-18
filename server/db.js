@@ -16,7 +16,7 @@ export async function ensureIndexes(db) {
     db.collection("users").createIndex({ emailNormalized: 1 }, { unique: true, sparse: true }),
     db.collection("users").createIndex({ usernameNormalized: 1 }, { unique: true, sparse: true }),
     db.collection("sessions").createIndex({ tokenHash: 1 }, { unique: true }),
-    db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),    db.collection("mfaChallenges").createIndex({ tokenHash: 1 }, { unique: true }),    db.collection("mfaChallenges").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("mfaChallenges").createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection("mfaChallenges").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("threads").createIndex({ tenantId: 1, participantIds: 1, updatedAt: -1 }),

@@ -50,7 +50,7 @@ export async function processOutboxBatch(db, { limit = 50, clock = () => Date.no
       }
       await db.collection("outboxEvents").updateOne(
         { _id: event._id, leaseToken, processedAt: null },
-        { $set: { processedAt: new Date(clock()), leaseUntil: null, lastError: null, dispatchedRecipients: recipients.length } }
+        { $set: { processedAt: new Date(clock()), lastError: null, dispatchedRecipients: recipients.length }, $unset: { leaseToken: "", leaseUntil: "" } }
       );
       result.processed++;
     } catch (error) {
@@ -62,7 +62,7 @@ export async function processOutboxBatch(db, { limit = 50, clock = () => Date.no
       else fields.nextAttemptAt = new Date(clock() + delay);
       await db.collection("outboxEvents").updateOne(
         { _id: event._id, leaseToken, processedAt: null },
-        { $set: fields }
+        { $set: fields, $unset: { leaseToken: "", leaseUntil: "" } }
       );
       if (dead) result.deadLettered++; else result.retried++;
     }

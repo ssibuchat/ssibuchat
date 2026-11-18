@@ -251,3 +251,11 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Dependency advisory report step: completed; the development-only picomatch advisory remains documented and unsuppressed.
 - Vite production build: passed.
 - This closes the code-and-CI portion of this email-change increment. It does not close all Phase 1 acceptance: passkeys, full security notifications, admin audit UI, staging/provider verification and browser E2E remain open.
+
+
+## Phase 1 administrative audit interface increment — 2026-11-18
+
+- Added an independent-admin-only `GET /api/admin/audit` endpoint with a bounded 1–100 result limit, newest-first ordering and strict tenant scoping.
+- API serialization allowlists event ID, actor ID, action, target and timestamp; it does not return arbitrary audit documents or credentials.
+- Added an admin UI for viewing recent audit events and tests for tenant isolation, field allowlisting, result bounds and non-admin denial.
+- CI for this new audit-interface increment is pending; the earlier 42/42 pass does not cover these latest changes.

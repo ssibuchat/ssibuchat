@@ -31,7 +31,7 @@ async function bootstrap(req, res, db, body) {
   const token=await createSession(db,user); setSessionCookie(res,token); await audit(db,user,"admin.bootstrap");
   return json(res,201,{ok:true,user:{id:String(user._id),email:user.email,role:user.role}});
 }
-export async function route(req,res) {
+export async function route(req,res,database = null) {
   res.setHeader("X-Content-Type-Options","nosniff"); res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy","camera=(self), microphone=(self), geolocation=()");
   const path=new URL(req.url||"/","http://"+(req.headers?.host||"localhost")).pathname.replace(/\/+$/,"")||"/";
@@ -39,7 +39,7 @@ export async function route(req,res) {
   if(req.method!=="GET" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
   if((process.env.VERCEL || process.env.NODE_ENV === "production") && !process.env.SSIBUCHAT_SESSION_SECRET) return json(res,503,{ok:false,error:"session_secret_not_configured"});
   try {
-    const db=await getDb(); await ensureIndexes(db);
+    const db=database || await getDb(); if (!database) await ensureIndexes(db);
     if(path==="/api/health" && req.method==="GET") return json(res,200,{ok:true,product:"ssibuchat",database:"connected",timestamp:now().toISOString()});
     if(path==="/api/auth/bootstrap" && req.method==="POST") return await bootstrap(req,res,db,await readBody(req));
     if(path==="/api/auth/register" && req.method==="POST"){

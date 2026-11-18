@@ -1,7 +1,7 @@
 # Security and privacy controls
 
 ## Identity and sessions
-Independent accounts use scrypt password hashes and random opaque session tokens. Only HMAC token digests are persisted. Sessions expire and are invalidated on logout. Admin bootstrap is one-time and requires both `SSIBUCHAT_BOOTSTRAP_SECRET` and `SSIBUCHAT_SESSION_SECRET`.
+Independent accounts use scrypt password hashes and random opaque session tokens. Only HMAC token digests are persisted. Sessions expire and are invalidated on logout. Admin bootstrap is one-time and requires both `SSIBUCHAT_BOOTSTRAP_SECRET` and `SSIBUCHAT_SESSION_SECRET`. TOTP MFA secrets are encrypted with AES-256-GCM using a separate deployment-specific `SSIBUCHAT_MFA_ENCRYPTION_KEY`; recovery codes are stored only as HMAC hashes and are consumed once. MFA setup returns a provisioning secret only to the authenticated account for authenticator enrollment. Do not reuse the MFA encryption key between PTU and independent deployments.
 
 ## Request integrity
 State-changing browser requests fail closed if Origin and Referer are both absent, opaque or foreign. Same-origin Referer is supported for clients that omit Origin. Do not add permissive CORS to cookie-authenticated endpoints.

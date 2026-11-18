@@ -279,3 +279,16 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Production dependency audit: passed with zero production dependency vulnerabilities.
 - Vite production build: passed.
 - Password reset and MFA enable/disable now attempt post-event security notices to verified email addresses; failures are non-fatal and the event remains audited. Device-aware sign-in alerts and notification preferences remain open.
+
+
+## Commerce merchant/buyer and inventory increment — 2026-11-18
+
+- Added tenant-scoped storefront directory and product catalog browsing for authenticated buyers.
+- Split buyer order creation from merchant catalog ownership. Orders carry separate buyerId/merchantId and immutable product/price/quantity snapshots.
+- Order creation is idempotent and binds keys to a payload hash; buyers can list their orders and merchants can list/advance fulfillment status.
+- Added merchant inventory controls with stock quantity and tracking flags. Checkout atomically reserves stock; insufficient inventory rejects checkout; pending-order cancellation releases reservations. Checkout failures roll reservations back.
+- Added payment intent records and a test-only sandbox settlement flow. Payment mode defaults to disabled; sandbox settlement requires explicit independent environment flags. No live payment provider, card/mobile-money charge, refund or real-funds movement is implemented.
+- Added Commerce UI for storefront browsing, buyer order creation/checkout, merchant order fulfillment and inventory management.
+- Added tests for buyer/merchant visibility, idempotent order payloads, stock reservations, insufficient stock, cancellation release, sandbox-disabled behavior and idempotent sandbox settlement.
+- Latest GitHub Actions run [44362371320](https://github.com/ssibuchat/ssibuchat/actions/runs/44362371320) passed: npm ci; 44 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- External payment provider selection, provider credentials, signed webhook validation, refunds and reconciliation remain open.

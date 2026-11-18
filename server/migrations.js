@@ -6,6 +6,8 @@ const now = () => new Date();
 function unwrap(result) { return result?.value ?? result ?? null; }
 
 export async function runMigrations(db) {
+  const completed = await db.collection("schemaMigrations").findOne({ id:MIGRATION_ID, status:"completed" });
+  if (completed) return { skipped:true };
   const token = randomBytes(18).toString("base64url"), timestamp = now();
   let claim;
   try {

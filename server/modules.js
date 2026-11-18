@@ -24,7 +24,7 @@ const validId = value => ObjectId.isValid(String(value || ""));
 function serialize(row) {
   return { id: String(row._id), ...Object.fromEntries(Object.entries(row).filter(([key]) => !["_id", "ownerId", "tenantId"].includes(key)).map(([key, value]) => [key, value instanceof ObjectId ? String(value) : value])) };
 }
-function projectInput(key, input) {
+export function projectInput(key, input) {
   const definition = definitions[key], result = {};
   for (const [field, max] of Object.entries(definition.fields)) {
     if (input[field] === undefined) continue;

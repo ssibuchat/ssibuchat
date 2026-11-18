@@ -31,7 +31,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Persistent MongoDB-backed throttling for bootstrap, registration, login, thread starts, message sends, module writes and AI requests.
 - [x] Owner/tenant-scoped module record boundaries and indexes.
 - [ ] Complete tenant membership/role model, schema-versioned migrations and admin audit UI.
-- [ ] Account email verification, password recovery, MFA, passkeys, device/session management and security notifications.
+- [ ] Account email verification, password recovery, passkeys, device/session management and security notifications.
+- [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification and disable/revocation flow (automated primitive tests; API integration acceptance pending).
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
 - [x] GitHub Actions CI: 14 unit tests passed, Vite build passed on validated commit `bfc81f4d5279aedc41b240d0dab5b2842432bba0`.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.

@@ -296,6 +296,12 @@ export async function route(req,res,database = null) {
     if(path==="/api/auth/me"&&req.method==="GET") return json(res,200,{ok:true,user:p?{id:String(p.user._id),username:p.user.username,displayName:p.user.displayName,role:p.user.role,accountType:p.user.accountType}:null});
     if(path.startsWith("/api/admin/")){
       if(!p||p.user.role!=="admin")return json(res,403,{ok:false,error:"admin_required"});
+      if(path==="/api/admin/audit"&&req.method==="GET"){
+        const url=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
+        const requested=Number(url.searchParams.get("limit")||50),limit=Number.isInteger(requested)?Math.max(1,Math.min(100,requested)):50;
+        const rows=await db.collection("auditEvents").find({tenantId:p.user.tenantId}).sort({createdAt:-1,_id:-1}).limit(limit).toArray();
+        return json(res,200,{ok:true,events:rows.map(event=>({id:String(event._id),actorId:event.actorId?String(event.actorId):null,action:safeText(event.action,100),target:event.target===null||event.target===undefined?null:safeText(event.target,160),createdAt:event.createdAt}))});
+      }
       if(path==="/api/admin/testers"&&req.method==="GET"){const rows=await db.collection("users").find({accountType:"tester"},{projection:{passwordHash:0}}).toArray();return json(res,200,{ok:true,policy:await policy(db),testers:rows.map(u=>({id:String(u._id),username:u.username,displayName:u.displayName,status:u.status}))});}
       if(path==="/api/admin/testers"&&req.method==="POST"){
         const b=await readBody(req),username=usernameNorm(b.username),password=String(b.password||"");

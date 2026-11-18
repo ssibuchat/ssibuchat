@@ -42,6 +42,14 @@ export default function ModuleWorkspace({ active, user }) {
   const [ledgerAccounts, setLedgerAccounts] = useState([]);
   const [ledgerJournals, setLedgerJournals] = useState([]);
   const [trialBalance, setTrialBalance] = useState([]);
+  const [storefronts, setStorefronts] = useState([]);
+  const [selectedStorefront, setSelectedStorefront] = useState("");
+  const [storefrontProducts, setStorefrontProducts] = useState([]);
+  const [selectedStoreProduct, setSelectedStoreProduct] = useState("");
+  const [orderQuantity, setOrderQuantity] = useState("1");
+  const [commerceOrders, setCommerceOrders] = useState([]);
+  const [checkoutIntent, setCheckoutIntent] = useState(null);
+  const [inventoryDrafts, setInventoryDrafts] = useState({});
   const [ledgerAccountForm, setLedgerAccountForm] = useState({code:"",name:"",type:"asset",currency:"UGX"});
   const [ledgerJournalForm, setLedgerJournalForm] = useState({debitAccountId:"",creditAccountId:"",amountMinor:"",memo:""});
 
@@ -84,6 +92,18 @@ export default function ModuleWorkspace({ active, user }) {
     if (!user || active !== "finance") return;
     refreshLedger().catch(e=>setError(e.message));
   }, [active,user?.id]);
+  useEffect(() => {
+    if (!user || active !== "commerce" || resource !== "orders") return;
+    let cancelled=false;
+    Promise.all([api("/api/commerce/storefronts"),api("/api/commerce/orders")]).then(([stores,orders])=>{if(!cancelled){setStorefronts(stores.storefronts||[]);setCommerceOrders(orders.orders||[]);if(!selectedStorefront&&stores.storefronts?.length)setSelectedStorefront(stores.storefronts[0].id);}}).catch(e=>{if(!cancelled)setError(e.message);});
+    return ()=>{cancelled=true;};
+  }, [active,resource,user?.id]);
+  useEffect(() => {
+    if (!user || active !== "commerce" || resource !== "orders" || !selectedStorefront) {setStorefrontProducts([]);return;}
+    let cancelled=false;
+    api("/api/commerce/storefronts?businessId="+encodeURIComponent(selectedStorefront)).then(d=>{if(!cancelled){setStorefrontProducts(d.products||[]);if(!selectedStoreProduct&&d.products?.length)setSelectedStoreProduct(d.products[0].id);}}).catch(e=>{if(!cancelled)setError(e.message);});
+    return ()=>{cancelled=true;};
+  }, [active,resource,selectedStorefront,user?.id]);
 
   function set(name, value) { setForm(current => ({ ...current, [name]: value })); }
   async function refresh() {
@@ -101,6 +121,37 @@ export default function ModuleWorkspace({ active, user }) {
       const saved = await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });
       setForm({}); await refresh(); if (resource === "workspaces" && saved.item?.id) setSelectedWorkspace(saved.item.id); setMessage("Saved.");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function refreshCommerce() {
+    const [stores,orders]=await Promise.all([api("/api/commerce/storefronts"),api("/api/commerce/orders")]);
+    setStorefronts(stores.storefronts||[]);setCommerceOrders(orders.orders||[]);
+    if(!selectedStorefront&&stores.storefronts?.length)setSelectedStorefront(stores.storefronts[0].id);
+  }
+  async function createCommerceOrder(e) {
+    e.preventDefault();setBusy(true);setError("");setMessage("");setCheckoutIntent(null);
+    try { const product=storefrontProducts.find(item=>item.id===selectedStoreProduct);if(!product)throw new Error("select_product");await api("/api/commerce/orders",{method:"POST",body:JSON.stringify({businessId:selectedStorefront,idempotencyKey:crypto.randomUUID(),items:[{productId:product.id,quantity:Number(orderQuantity)}]})});await refreshCommerce();setMessage("Order created. Checkout is available when a payment provider or sandbox is enabled."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function checkoutCommerceOrder(order) {
+    setBusy(true);setError("");setMessage("");
+    try { const d=await api("/api/commerce/orders/"+order.id+"/checkout",{method:"POST",body:JSON.stringify({idempotencyKey:crypto.randomUUID()})});setCheckoutIntent(d.paymentIntent||null);await refreshCommerce();setMessage("Checkout intent created."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function settleSandboxPayment() {
+    if(!checkoutIntent?.id)return;setBusy(true);setError("");setMessage("");
+    try { await api("/api/commerce/payments/"+checkoutIntent.id+"/sandbox-settle",{method:"POST",body:"{}"});setCheckoutIntent(null);await refreshCommerce();setMessage("Sandbox payment settled. No real funds were moved."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function updateCommerceOrder(order,status) {
+    setBusy(true);setError("");setMessage("");
+    try { await api("/api/commerce/orders/"+order.id+"/status",{method:"PATCH",body:JSON.stringify({status})});await refreshCommerce();setMessage("Merchant order status updated."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function saveProductInventory(item) {
+    const draft=inventoryDrafts[item.id]||{stockQuantity:item.stockQuantity||0,trackInventory:item.trackInventory===true};
+    setBusy(true);setError("");setMessage("");
+    try { await api("/api/commerce/products/"+item.id+"/inventory",{method:"PATCH",body:JSON.stringify({stockQuantity:Number(draft.stockQuantity),trackInventory:draft.trackInventory})});await refresh();setMessage("Inventory updated."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
   }
   async function refreshLedger() {
     const [accounts,journals,balance]=await Promise.all([
@@ -208,6 +259,13 @@ export default function ModuleWorkspace({ active, user }) {
         </div>
       </> : <p className="module-muted">Create a workspace above to invite members and collaborate on shared documents.</p>}
     </div> : null}
+    {active==="commerce"&&resource==="orders"?<div className="commerce-panel">
+      <div className="eyebrow">BUYER CHECKOUT</div><h3>Browse storefronts</h3>
+      <form className="commerce-order-form" onSubmit={createCommerceOrder}><label className="module-field">Storefront<select value={selectedStorefront} onChange={e=>{setSelectedStorefront(e.target.value);setSelectedStoreProduct("");}} required><option value="">Choose a storefront</option>{storefronts.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label><label className="module-field">Product<select value={selectedStoreProduct} onChange={e=>setSelectedStoreProduct(e.target.value)} required><option value="">Choose a product</option>{storefrontProducts.map(product=><option key={product.id} value={product.id} disabled={!product.available}>{product.name} · {product.currency} {product.priceMinor.toLocaleString()} minor units{product.available?"":" · out of stock"}</option>)}</select></label><Field label="Quantity" type="number" value={orderQuantity} onChange={setOrderQuantity} required/><button className="btn-dark" disabled={busy||!selectedStorefront||!selectedStoreProduct}>Create buyer order</button></form>
+      {checkoutIntent?<div className="checkout-intent"><b>Sandbox payment intent</b><small>{checkoutIntent.id} · {checkoutIntent.status}</small>{checkoutIntent.sandboxSettlementEnabled?<button type="button" className="toggle" onClick={settleSandboxPayment} disabled={busy}>Simulate sandbox settlement</button>:<p className="module-muted">Sandbox settlement is disabled. No real payment provider is configured.</p>}</div>:null}
+      <div className="eyebrow">BUYER / MERCHANT ORDERS</div><div className="commerce-orders">{commerceOrders.map(order=><article className="commerce-order" key={order.id}><div><b>{order.items?.map(item=>item.name+" × "+item.quantity).join(", ")}</b><small>{order.currency} {order.totalMinor.toLocaleString()} minor units · {order.status} · {order.paymentStatus}</small></div>{order.buyerId===user.id&&order.status==="draft"?<button type="button" className="toggle" onClick={()=>checkoutCommerceOrder(order)} disabled={busy}>Checkout</button>:order.merchantId===user.id&&order.status!=="completed"&&order.status!=="cancelled"?<select value={order.status} onChange={e=>updateCommerceOrder(order,e.target.value)} disabled={busy}><option value="confirmed">Confirmed</option><option value="accepted">Accepted</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>:null}</article>)}</div>
+      <p className="module-muted">Payment mode is disabled by default. Sandbox settlement is a test-only simulation; external payment collection, refunds and reconciliation are not enabled.</p>
+    </div>:null}
     {active==="finance"?<div className="ledger-panel">
       <div className="module-heading"><div><div className="eyebrow">DOUBLE-ENTRY LEDGER</div><h3>Accounts and journals</h3><p>Every posted journal balances debits and credits. Posted entries are immutable; corrections use reversal journals.</p></div></div>
       <div className="ledger-grid">
@@ -218,23 +276,22 @@ export default function ModuleWorkspace({ active, user }) {
       <div className="ledger-card"><h4>Posted journals</h4>{ledgerJournals.length?ledgerJournals.map(journal=><div className="ledger-row" key={journal.id}><span><b>{journal.memo}</b><small>{journal.currency} {journal.totalMinor.toLocaleString()} · {new Date(journal.createdAt).toLocaleString()}</small></span>{journal.reversalOf?<em>Reversal</em>:<button type="button" className="toggle" onClick={()=>reverseLedgerJournal(journal.id)} disabled={busy}>Reverse</button>}</div>):<p className="module-muted">No journals posted yet.</p>}</div>
     </div>:null}
     {active === "work" ? <div className="workspace-preferences"><b>Dashboard preferences</b><select value={prefs.layout} onChange={e=>savePrefs({...prefs,layout:e.target.value})}><option value="comfortable">Comfortable layout</option><option value="compact">Compact layout</option></select><label><input type="checkbox" checked={prefs.contextualPanels} onChange={e=>savePrefs({...prefs,contextualPanels:e.target.checked})}/> Contextual panels</label></div> : null}
-    <form className="module-form" onSubmit={create}>
+    {resource!=="orders"?<form className="module-form" onSubmit={create}>
       {resource === "workspaces" ? <><Field label="Workspace name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/></> : null}
       {resource === "projects" ? <><Field label="Project name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Workspace ID (optional)" value={form.workspaceId||""} onChange={v=>set("workspaceId",v)}/></> : null}
       {resource === "tasks" ? <><Field label="Task title" value={form.title||""} onChange={v=>set("title",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Workspace ID (optional)" value={form.workspaceId||""} onChange={v=>set("workspaceId",v)}/><Field label="Project ID (optional)" value={form.projectId||""} onChange={v=>set("projectId",v)}/><label className="module-field">Priority<select value={form.priority||"normal"} onChange={e=>set("priority",e.target.value)}><option>low</option><option>normal</option><option>high</option><option>urgent</option></select></label><Field label="Due date" type="date" value={form.dueDate||""} onChange={v=>set("dueDate",v)}/></> : null}
       {resource === "events" ? <><Field label="Event title" value={form.title||""} onChange={v=>set("title",v)} required/><Field label="Start (ISO date/time)" value={form.startsAt||""} onChange={v=>set("startsAt",v)} required placeholder="2026-12-01T09:00:00+03:00"/><Field label="End (ISO date/time)" value={form.endsAt||""} onChange={v=>set("endsAt",v)} required/><Field label="Workspace ID (optional)" value={form.workspaceId||""} onChange={v=>set("workspaceId",v)}/><Field label="Timezone" value={form.timezone||"Africa/Kampala"} onChange={v=>set("timezone",v)}/></> : null}
       {resource === "businesses" ? <><Field label="Business name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Category" value={form.category||""} onChange={v=>set("category",v)}/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Website" value={form.website||""} onChange={v=>set("website",v)}/></> : null}
-      {resource === "products" ? <><Field label="Product name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Business ID" value={form.businessId||""} onChange={v=>set("businessId",v)} required/><Field label="Price (minor currency units)" type="number" value={form.priceMinor||""} onChange={v=>set("priceMinor",v)} required/><Field label="Currency (ISO 4217)" value={form.currency||"UGX"} onChange={v=>set("currency",v.toUpperCase())} required/><Field label="SKU" value={form.sku||""} onChange={v=>set("sku",v)}/></> : null}
-      {resource === "orders" ? <><Field label="Business ID" value={form.businessId||""} onChange={v=>set("businessId",v)} required/><Field label="Product ID" value={form.productId||""} onChange={v=>set("productId",v)} required/><Field label="Quantity" type="number" value={form.quantity||"1"} onChange={v=>set("quantity",v)} required/></> : null}
+      {resource === "products" ? <><Field label="Product name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Business ID" value={form.businessId||""} onChange={v=>set("businessId",v)} required/><Field label="Price (minor currency units)" type="number" value={form.priceMinor||""} onChange={v=>set("priceMinor",v)} required/><Field label="Currency (ISO 4217)" value={form.currency||"UGX"} onChange={v=>set("currency",v.toUpperCase())} required/><Field label="SKU" value={form.sku||""} onChange={v=>set("sku",v)}/><Field label="Initial stock quantity" type="number" value={form.stockQuantity||"0"} onChange={v=>set("stockQuantity",v)}/><label className="module-field module-checkbox"><input type="checkbox" checked={form.trackInventory===true} onChange={e=>set("trackInventory",e.target.checked)}/> Track inventory</label></> : null}
+      
       {resource === "finance" ? <><label className="module-field">Type<select value={form.type||"expense"} onChange={e=>set("type",e.target.value)}><option>income</option><option>expense</option><option>refund</option><option>fee</option></select></label><Field label="Amount (minor units)" type="number" value={form.amountMinor||""} onChange={v=>set("amountMinor",v)} required/><Field label="Currency" value={form.currency||"UGX"} onChange={v=>set("currency",v.toUpperCase())} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Reference" value={form.reference||""} onChange={v=>set("reference",v)}/></> : null}
       {resource === "media" ? <><Field label="Asset name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="MIME type" value={form.mimeType||""} onChange={v=>set("mimeType",v)}/><Field label="Size in bytes" type="number" value={form.sizeBytes||"0"} onChange={v=>set("sizeBytes",v)}/><Field label="Storage key (provider-managed)" value={form.storageKey||""} onChange={v=>set("storageKey",v)}/></> : null}
-      <button className="btn-dark" disabled={busy}>{busy ? "Saving…" : resource === "orders" ? "Create draft order" : "Save " + (labels[resource]||"record").toLowerCase()}</button>
-    </form>
-    {resource === "orders" ? <p className="module-muted">Orders are draft records only. Payment collection is not enabled.</p> : null}
+      <button className="btn-dark" disabled={busy}>{busy ? "Saving…" : "Save " + (labels[resource]||"record").toLowerCase()}</button>
+    </form>:null}
     {resource === "media" ? <p className="module-muted">This creates metadata only. File upload/storage is not configured yet.</p> : null}
     {resource === "finance" ? <p className="module-muted">These are immutable bookkeeping records, not a wallet or payment account.</p> : null}
     {message ? <p className="module-success" role="status">{message}</p> : null}
     {error ? <p className="form-error">{error}</p> : null}
-    <div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""} · ID: {item.id}</small><span>{item.description||item.note||item.reference||""}</span></article>) : <p className="module-muted">No records yet.</p>}</div>
+    <div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""} · ID: {item.id}</small><span>{item.description||item.note||item.reference||""}</span>{resource==="products"?<div className="inventory-editor"><Field label="Available stock" type="number" value={String(inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0)} onChange={v=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:v,trackInventory:inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true}})}/><label className="module-field module-checkbox"><input type="checkbox" checked={inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true} onChange={e=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0,trackInventory:e.target.checked}})}/> Track inventory</label><button type="button" className="toggle" onClick={()=>saveProductInventory(item)} disabled={busy}>Save inventory</button></div>:null}</article>) : <p className="module-muted">No records yet.</p>}</div>
   </section>;
 }

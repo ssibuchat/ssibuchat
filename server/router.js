@@ -170,6 +170,30 @@ export async function route(req,res,database = null) {
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.password.reset");
       return json(res,200,{ok:true,passwordReset:true,signedOutEverywhere:true});
     }
+    if (path === "/api/account/password/change" && req.method === "POST") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      const throttle = await consumeRateLimit(db,"password-change",String(p.user._id),5,60*60*1000);
+      if (!throttle.allowed) { res.setHeader("Retry-After",String(throttle.retryAfterSeconds)); return json(res,429,{ok:false,error:"rate_limit_exceeded"}); }
+      const body = await readBody(req), currentPassword = String(body.currentPassword || ""), newPassword = String(body.newPassword || "");
+      if (newPassword.length < 12 || newPassword.length > 128) return json(res,400,{ok:false,error:"new_password_must_be_12_to_128_characters"});
+      const credential = await db.collection("users").findOne({_id:p.user._id,status:"active"},{projection:{passwordHash:1,email:1,emailVerified:1,tenantId:1}});
+      if (!credential || !(await verifyPassword(currentPassword,credential.passwordHash))) return json(res,401,{ok:false,error:"current_password_incorrect"});
+      if (await verifyPassword(newPassword,credential.passwordHash)) return json(res,400,{ok:false,error:"new_password_must_be_different"});
+      const passwordHash = await hashPassword(newPassword);
+      const changed = await db.collection("users").updateOne({_id:p.user._id,status:"active",passwordHash:credential.passwordHash},{$set:{passwordHash,passwordChangedAt:now()}});
+      if (changed.matchedCount !== 1) return json(res,409,{ok:false,error:"password_changed_concurrently_retry"});
+      await db.collection("sessions").deleteMany({userId:p.user._id});
+      await audit(db,p.user,"account.password.change");
+      let securityNoticeSent = false;
+      if (credential.email && credential.emailVerified === true) {
+        try {
+          const notice = await sendTransactionalEmail({to:credential.email,subject:"Your SsibuChat password was changed",text:"The password for your independent SsibuChat account was changed. All active sessions were signed out. If you did not make this change, use account recovery and contact SsibuChat support."});
+          securityNoticeSent = notice.configured === true;
+        } catch { securityNoticeSent = false; }
+      }
+      clearSessionCookie(res);
+      return json(res,200,{ok:true,passwordChanged:true,signedOutEverywhere:true,securityNoticeSent});
+    }
     if (path === "/api/account/mfa" && req.method === "GET") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
       return json(res,200,{ok:true,enabled:p.user.mfaEnabled===true,recoveryCodesRemaining:Array.isArray(p.user.recoveryCodeHashes)?p.user.recoveryCodeHashes.length:0});

@@ -32,7 +32,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Owner/tenant-scoped module record boundaries and indexes.
 - [ ] Complete tenant membership/role model, schema-versioned migrations and admin audit UI.
 - [ ] Account email verification, password recovery, passkeys, device/session management and security notifications.
-- [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification and disable/revocation flow (automated primitive tests; API integration acceptance pending).
+- [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification and disable/revocation flow.
+- [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
 - [x] GitHub Actions CI: latest lockfile-driven run [44353196457](https://github.com/ssibuchat/ssibuchat/actions/runs/44353196457) passed npm ci, 19 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.

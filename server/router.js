@@ -184,7 +184,7 @@ export async function route(req,res,database = null) {
       const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
       const query=safeText(u.searchParams.get("q")||"",80);
       if(query.length<2)return json(res,200,{ok:true,messages:[]});
-      const escaped=query.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\    if(path==="/api/people/blocked"&&req.method==="GET"){");
+      const escaped=query.split("").map(char=>[46,42,43,63,94,36,123,125,40,41,124,91,93,92].includes(char.charCodeAt(0))?"\\"+char:char).join("");
       const threads=await db.collection("threads").find({tenantId:p.user.tenantId,participantIds:p.user._id}).project({_id:1}).limit(100).toArray();
       const threadIds=threads.map(thread=>thread._id);
       if(!threadIds.length)return json(res,200,{ok:true,messages:[]});

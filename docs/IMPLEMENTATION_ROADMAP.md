@@ -11,11 +11,11 @@ This roadmap is the complete delivery register. A phase is not complete because 
 - [ ] Establish threat model, data inventory, SLOs, incident owner and release checklist.
 
 ## Phase 1 — Independent foundation
-- [ ] Independent Vercel/Vite app, Mongo connection and health endpoint.
-- [ ] Independent authentication, sessions, account recovery and admin bootstrap.
-- [ ] Independent tester policy and admin controls; no PTU MAC dependency.
+- [x] Independent Vite application, Mongo connection utility, API health endpoint and Vercel configuration (runtime deployment not yet configured).
+- [x] Independent account registration, password hashing, login/logout and opaque server-side sessions; one-time admin bootstrap endpoint.\n- [ ] Account recovery, email verification, MFA and device/session management.
+- [x] Independent tester policy and admin controls; disabled by default and enforced server-side, with session revocation when switched off. No PTU MAC dependency.
 - [ ] Tenant/membership model, schema migrations, audit events and rate limiting.
-- [ ] CI: lint, typecheck, unit tests, integration tests, build and dependency/security scans.
+- [x] GitHub Actions CI for unit tests and production build.\n- [ ] Add lint, typecheck, integration/E2E tests and dependency/security remediation.
 - [ ] Accessibility and responsive design baseline (WCAG 2.2 AA target).
 
 ## Phase 2 — Secure Connect core
@@ -69,7 +69,7 @@ This roadmap is the complete delivery register. A phase is not complete because 
 - [ ] Localization, time zones, low-bandwidth and offline resilience.
 
 ## Phase 9 — PTU parity and dual-deployment operations
-- [ ] Apply targeted PTU security fixes without replacing PTU auth/integrations.
+- [ ] Apply targeted PTU security fixes without replacing PTU auth/integrations. A draft, unmerged PTU PR currently contains the first authorization and MAC tester-policy changes.
 - [ ] Enforce MAC tester policy for PTU-hosted tester accounts only.
 - [ ] Verify PTU routes, Higher/ODEI OS links, UID/email/SMS and MAC controls.
 - [ ] Keep independent admin/tester policy isolated from PTU MAC.

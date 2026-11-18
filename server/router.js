@@ -179,6 +179,18 @@ export async function route(req,res,database = null) {
         await audit(db,p.user,b.enabled?"tester-access.enable":"tester-access.disable");return json(res,200,{ok:true,policy:await policy(db)});
       }
     }
+    if(path==="/api/search/messages"&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
+      const query=safeText(u.searchParams.get("q")||"",80);
+      if(query.length<2)return json(res,200,{ok:true,messages:[]});
+      const escaped=query.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\    if(path==="/api/people/blocked"&&req.method==="GET"){");
+      const threads=await db.collection("threads").find({tenantId:p.user.tenantId,participantIds:p.user._id}).project({_id:1}).limit(100).toArray();
+      const threadIds=threads.map(thread=>thread._id);
+      if(!threadIds.length)return json(res,200,{ok:true,messages:[]});
+      const rows=await db.collection("messages").find({tenantId:p.user.tenantId,threadId:{$in:threadIds},text:{$regex:escaped,$options:"i"},deletedAt:{$exists:false}}).sort({createdAt:-1}).limit(30).toArray();
+      return json(res,200,{ok:true,messages:rows.map(message=>({id:String(message._id),threadId:String(message.threadId),senderId:String(message.senderId),text:message.text,createdAt:message.createdAt,editedAt:message.editedAt||null}))});
+    }
     if(path==="/api/people/blocked"&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const rows=await db.collection("blocks").find({tenantId:p.user.tenantId,userId:p.user._id}).sort({createdAt:-1}).limit(100).toArray();
@@ -457,6 +469,62 @@ export async function route(req,res,database = null) {
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const rows=await db.collection("threads").find({tenantId:p.user.tenantId,participantIds:p.user._id}).sort({updatedAt:-1}).limit(50).toArray();
       return json(res,200,{ok:true,threads:rows.map(t=>({id:String(t._id),title:t.title,updatedAt:t.updatedAt,lastMessage:t.lastMessage||null}))});
+    }
+    const messageMutationMatch=path.match(/^\/api\/messages\/([a-f0-9]{24})$/i);
+    if(messageMutationMatch&&(req.method==="PATCH"||req.method==="DELETE")){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const message=await db.collection("messages").findOne({_id:new ObjectId(messageMutationMatch[1]),tenantId:p.user.tenantId});
+      if(!message||message.deletedAt)return json(res,404,{ok:false,error:"message_not_found"});
+      const thread=await db.collection("threads").findOne({_id:message.threadId,tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!thread)return json(res,404,{ok:false,error:"message_not_found"});
+      const isSender=String(message.senderId)===String(p.user._id);
+      const admins=Array.isArray(thread.adminIds)&&thread.adminIds.length?thread.adminIds:[thread.createdBy];
+      const isGroupAdmin=thread.type==="group"&&admins.some(id=>String(id)===String(p.user._id));
+      if(req.method==="PATCH"){
+        if(!isSender)return json(res,403,{ok:false,error:"message_sender_required"});
+        const b=await readBody(req),text=safeText(b.text,4000);
+        if(!text)return json(res,400,{ok:false,error:"message_text_required"});
+        await db.collection("messages").updateOne({_id:message._id,tenantId:p.user.tenantId,senderId:p.user._id,deletedAt:{$exists:false}},{$set:{text,editedAt:now(),updatedAt:now()}});
+        if(String(thread.updatedAt)===String(message.createdAt))await db.collection("threads").updateOne({_id:thread._id,tenantId:p.user.tenantId},{$set:{lastMessage:text.slice(0,160)}});
+        await audit(db,p.user,"message.edit",String(message._id));
+        return json(res,200,{ok:true,edited:true});
+      }
+      if(!isSender&&!isGroupAdmin)return json(res,403,{ok:false,error:"message_delete_forbidden"});
+      await db.collection("messages").updateOne({_id:message._id,tenantId:p.user.tenantId,deletedAt:{$exists:false}},{$set:{text:"",deletedAt:now(),deletedBy:p.user._id,updatedAt:now()}});
+      const latest=await db.collection("messages").find({tenantId:p.user.tenantId,threadId:thread._id,deletedAt:{$exists:false}}).sort({createdAt:-1}).limit(1).toArray();
+      await db.collection("threads").updateOne({_id:thread._id,tenantId:p.user.tenantId},{$set:{lastMessage:latest[0]?.text?.slice(0,160)||"Message deleted",updatedAt:now()}});
+      await audit(db,p.user,"message.delete",String(message._id));
+      return json(res,200,{ok:true,deleted:true});
+    }
+    const messageReactionMatch=path.match(/^\/api\/messages\/([a-f0-9]{24})\/reactions$/i);
+    if(messageReactionMatch){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const message=await db.collection("messages").findOne({_id:new ObjectId(messageReactionMatch[1]),tenantId:p.user.tenantId});
+      if(!message||message.deletedAt)return json(res,404,{ok:false,error:"message_not_found"});
+      const thread=await db.collection("threads").findOne({_id:message.threadId,tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!thread)return json(res,404,{ok:false,error:"message_not_found"});
+      if(req.method==="GET"){
+        const rows=await db.collection("messageReactions").find({tenantId:p.user.tenantId,messageId:message._id}).toArray();
+        return json(res,200,{ok:true,reactions:rows.map(row=>({userId:String(row.userId),emoji:row.emoji}))});
+      }
+      if(req.method==="POST"){
+        const b=await readBody(req),emoji=String(b.emoji||"");
+        if(!["👍","❤️","😂","😮","😢","🙏","🔥","🎉"].includes(emoji))return json(res,400,{ok:false,error:"unsupported_reaction"});
+        await db.collection("messageReactions").updateOne({tenantId:p.user.tenantId,messageId:message._id,userId:p.user._id,emoji},{$setOnInsert:{tenantId:p.user.tenantId,threadId:thread._id,messageId:message._id,userId:p.user._id,emoji,createdAt:now()}},{upsert:true});
+        return json(res,200,{ok:true,reacted:true});
+      }
+      return json(res,405,{ok:false,error:"method_not_allowed"});
+    }
+    const messageReactionDeleteMatch=path.match(/^\/api\/messages\/([a-f0-9]{24})\/reactions\/([^/]+)$/i);
+    if(messageReactionDeleteMatch&&req.method==="DELETE"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      let emoji;try{emoji=decodeURIComponent(messageReactionDeleteMatch[2]);}catch{return json(res,400,{ok:false,error:"invalid_reaction"});}
+      const message=await db.collection("messages").findOne({_id:new ObjectId(messageReactionDeleteMatch[1]),tenantId:p.user.tenantId});
+      if(!message)return json(res,404,{ok:false,error:"message_not_found"});
+      const thread=await db.collection("threads").findOne({_id:message.threadId,tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!thread)return json(res,404,{ok:false,error:"message_not_found"});
+      await db.collection("messageReactions").deleteOne({tenantId:p.user.tenantId,messageId:message._id,userId:p.user._id,emoji});
+      return json(res,200,{ok:true,removed:true});
     }
     const messageReceiptsMatch=path.match(/^\/api\/messages\/([a-f0-9]{24})\/receipts$/i);
     if(messageReceiptsMatch&&req.method==="GET"){

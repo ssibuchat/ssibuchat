@@ -16,6 +16,13 @@ const usernameNorm = (v) => safeText(v, 32).replace(/^@/, "").toLowerCase();
 const isTester = (u) => u && u.accountType === "tester";
 async function policy(db) { const d = await db.collection("appSettings").findOne({ _id: "tester-access" }); return { enabled: d?.enabled === true, updatedAt: d?.updatedAt || null }; }
 async function audit(db, actor, action, target = null) { await db.collection("auditEvents").insertOne({ tenantId: actor?.tenantId || "platform", actorId: actor?._id || null, action, target, createdAt: now() }); }
+async function sendSecurityNotice(user, subject, text) {
+  if (!user?.email || user.emailVerified !== true) return false;
+  try {
+    const sent = await sendTransactionalEmail({ to:user.email, subject, text });
+    return sent.configured === true;
+  } catch { return false; }
+}
 async function getPrincipal(req, db) {
   const p = await currentPrincipal(req, db);
   if (p && isTester(p.user) && !(await policy(db)).enabled) { await db.collection("sessions").deleteMany({ userId: p.user._id }); return null; }
@@ -204,11 +211,14 @@ export async function route(req,res,database = null) {
       if(!record)return json(res,400,{ok:false,error:"invalid_or_expired_reset_token"});
       const claimed=await db.collection("authTokens").updateOne({_id:record._id,usedAt:null,expiresAt:{$gt:now()}},{$set:{usedAt:now()}});
       if(claimed.modifiedCount!==1)return json(res,409,{ok:false,error:"reset_token_already_used"});
+      const account=await db.collection("users").findOne({_id:record.userId,tenantId:record.tenantId,status:"active"},{projection:{email:1,emailVerified:1}});
       const passwordHash=await hashPassword(password);
-      await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId,status:"active"},{$set:{passwordHash,passwordChangedAt:now()}});
+      const changed=await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId,status:"active"},{$set:{passwordHash,passwordChangedAt:now()}});
+      if(changed.matchedCount!==1)return json(res,404,{ok:false,error:"account_not_found"});
       await db.collection("sessions").deleteMany({userId:record.userId});
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.password.reset");
-      return json(res,200,{ok:true,passwordReset:true,signedOutEverywhere:true});
+      const securityNoticeSent=await sendSecurityNotice(account,"Your SsibuChat password was reset","The password for your independent SsibuChat account was reset. All active sessions were signed out. If you did not request this reset, contact SsibuChat support.");
+      return json(res,200,{ok:true,passwordReset:true,signedOutEverywhere:true,securityNoticeSent});
     }
     if (path === "/api/account/password/change" && req.method === "POST") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
@@ -261,7 +271,8 @@ export async function route(req,res,database = null) {
       const enabled = await db.collection("users").updateOne({_id:p.user._id,mfaEnabled:{$ne:true}},{$set:{mfaEnabled:true,mfaSecretEncrypted:p.user.mfaPendingSecretEncrypted,recoveryCodeHashes:recoveryCodes.map(hashRecoveryCode),mfaEnabledAt:now(),lastMfaTotpStep:matchedStep},$unset:{mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
       if (enabled.modifiedCount !== 1) return json(res,409,{ok:false,error:"mfa_state_changed"});
       await audit(db,p.user,"account.mfa.enabled");
-      return json(res,200,{ok:true,enabled:true,recoveryCodes});
+      const securityNoticeSent=await sendSecurityNotice(p.user,"Two-step verification enabled on SsibuChat","Authenticator-based two-step verification was enabled for your independent SsibuChat account. If you did not make this change, secure your account immediately.");
+      return json(res,200,{ok:true,enabled:true,recoveryCodes,securityNoticeSent});
     }
     if (path === "/api/account/mfa/disable" && req.method === "POST") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
@@ -269,13 +280,14 @@ export async function route(req,res,database = null) {
       let valid = false;
       try { valid = verifyTotp(decryptMfaSecret(p.user.mfaSecretEncrypted),b.code); } catch { valid = false; }
       if (!valid) return json(res,401,{ok:false,error:"invalid_mfa_code"});
-      const credentialUser = await db.collection("users").findOne({_id:p.user._id},{projection:{passwordHash:1}});
+      const credentialUser = await db.collection("users").findOne({_id:p.user._id},{projection:{passwordHash:1,email:1,emailVerified:1}});
       if (!credentialUser || !(await verifyPassword(b.password||"",credentialUser.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
       await db.collection("users").updateOne({_id:p.user._id},{$unset:{mfaEnabled:"",mfaSecretEncrypted:"",recoveryCodeHashes:"",mfaEnabledAt:"",mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
       await db.collection("sessions").deleteMany({userId:p.user._id});
       clearSessionCookie(res);
       await audit(db,p.user,"account.mfa.disabled");
-      return json(res,200,{ok:true,enabled:false});
+      const securityNoticeSent=await sendSecurityNotice(credentialUser,"Two-step verification disabled on SsibuChat","Authenticator-based two-step verification was disabled for your independent SsibuChat account. If you did not make this change, recover your account and contact SsibuChat support.");
+      return json(res,200,{ok:true,enabled:false,securityNoticeSent});
     }
     if (path === "/api/account/sessions" && req.method === "GET") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});

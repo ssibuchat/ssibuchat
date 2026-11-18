@@ -28,6 +28,16 @@ export default function ModuleWorkspace({ active, user }) {
   const [consent, setConsent] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [answer, setAnswer] = useState("");
+  const [selectedWorkspace, setSelectedWorkspace] = useState("");
+  const [workspaceMembers, setWorkspaceMembers] = useState([]);
+  const [workspaceDocuments, setWorkspaceDocuments] = useState([]);
+  const [workspaceActivity, setWorkspaceActivity] = useState([]);
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviteRole, setInviteRole] = useState("editor");
+  const [inviteToken, setInviteToken] = useState("");
+  const [documentTitle, setDocumentTitle] = useState("");
+  const [documentContent, setDocumentContent] = useState("");
+  const [activeDocument, setActiveDocument] = useState(null);
 
   useEffect(() => {
     if (active === "work") setResource("tasks");
@@ -40,9 +50,20 @@ export default function ModuleWorkspace({ active, user }) {
   useEffect(() => {
     if (!user || !resources[active]) { setItems([]); return; }
     let cancelled = false;
-    api("/api/modules/" + resource).then(d => { if (!cancelled) setItems(d.items || []); }).catch(e => { if (!cancelled) setError(e.message); });
+    api("/api/modules/" + resource).then(d => { if (!cancelled) { setItems(d.items || []); if (resource === "workspaces" && d.items?.length && !selectedWorkspace) setSelectedWorkspace(d.items[0].id); } }).catch(e => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, [active, resource, user?.id]);
+
+  useEffect(() => {
+    if (!user || active !== "work" || resource !== "workspaces" || !selectedWorkspace) { setWorkspaceMembers([]); setWorkspaceDocuments([]); setWorkspaceActivity([]); return; }
+    let cancelled = false;
+    Promise.all([
+      api("/api/workspaces/"+selectedWorkspace+"/members"),
+      api("/api/workspaces/"+selectedWorkspace+"/documents"),
+      api("/api/workspaces/"+selectedWorkspace+"/activity")
+    ]).then(([members,documents,activity])=>{if(!cancelled){setWorkspaceMembers(members.members||[]);setWorkspaceDocuments(documents.documents||[]);setWorkspaceActivity(activity.events||[]);}}).catch(e=>{if(!cancelled)setError(e.message);});
+    return ()=>{cancelled=true;};
+  }, [active,resource,selectedWorkspace,user?.id]);
 
   useEffect(() => {
     if (!user || active !== "work") return;
@@ -67,9 +88,37 @@ export default function ModuleWorkspace({ active, user }) {
       if (resource === "products") { body.priceMinor = Number(body.priceMinor); body.status = body.status || "active"; }
       if (resource === "finance") body.amountMinor = Number(body.amountMinor);
       if (resource === "media") body.sizeBytes = Number(body.sizeBytes || 0);
-      await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });
-      setForm({}); await refresh(); setMessage("Saved.");
+      const saved = await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });
+      setForm({}); await refresh(); if (resource === "workspaces" && saved.item?.id) setSelectedWorkspace(saved.item.id); setMessage("Saved.");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function refreshWorkspace() {
+    if (!selectedWorkspace) return;
+    const [members,documents,activity] = await Promise.all([
+      api("/api/workspaces/"+selectedWorkspace+"/members"),
+      api("/api/workspaces/"+selectedWorkspace+"/documents"),
+      api("/api/workspaces/"+selectedWorkspace+"/activity")
+    ]);
+    setWorkspaceMembers(members.members||[]); setWorkspaceDocuments(documents.documents||[]); setWorkspaceActivity(activity.events||[]);
+  }
+  async function inviteToWorkspace(e) {
+    e.preventDefault(); setBusy(true); setError(""); setMessage(""); setInviteToken("");
+    try { const d=await api("/api/workspaces/"+selectedWorkspace+"/invites",{method:"POST",body:JSON.stringify({username:inviteUsername,role:inviteRole})}); setInviteToken(d.invite.token); setInviteUsername(""); await refreshWorkspace(); setMessage("Invitation created. Share the one-time token with the invited account holder."); }
+    catch(e){setError(e.message);} finally{setBusy(false);}
+  }
+  async function createWorkspaceDocument(e) {
+    e.preventDefault(); setBusy(true); setError(""); setMessage("");
+    try { const d=await api("/api/workspaces/"+selectedWorkspace+"/documents",{method:"POST",body:JSON.stringify({title:documentTitle,content:documentContent})}); setActiveDocument(d.document); setDocumentTitle(d.document.title); setDocumentContent(d.document.content); await refreshWorkspace(); setMessage("Shared document created."); }
+    catch(e){setError(e.message);} finally{setBusy(false);}
+  }
+  async function openWorkspaceDocument(id) {
+    setError(""); try { const d=await api("/api/workspaces/"+selectedWorkspace+"/documents/"+id); setActiveDocument(d.document); setDocumentTitle(d.document.title); setDocumentContent(d.document.content); }
+    catch(e){setError(e.message);}
+  }
+  async function saveWorkspaceDocument(e) {
+    e.preventDefault(); if(!activeDocument)return; setBusy(true); setError(""); setMessage("");
+    try { const d=await api("/api/workspaces/"+selectedWorkspace+"/documents/"+activeDocument.id,{method:"PATCH",body:JSON.stringify({expectedVersion:activeDocument.version,title:documentTitle,content:documentContent})}); setActiveDocument(d.document); await refreshWorkspace(); setMessage("Document saved as version "+d.document.version+"."); }
+    catch(e){setError(e.message);} finally{setBusy(false);}
   }
   async function savePrefs(next) {
     setPrefs(next);
@@ -98,6 +147,16 @@ export default function ModuleWorkspace({ active, user }) {
     <div className="module-heading"><div><div className="eyebrow">{active.toUpperCase()} MODULE</div><h2>{active === "work" ? "Your workbench" : active === "commerce" ? "Your marketplace tools" : active === "finance" ? "Your finance records" : "Your media library"}</h2><p>Private records scoped to your independent SsibuChat account.</p></div>
       {resources[active]?.length > 1 ? <select value={resource} onChange={e=>{setResource(e.target.value);setForm({});setError("");}}>{resources[active].map(r=><option key={r} value={r}>{labels[r]}</option>)}</select> : null}
     </div>
+    {active === "work" && resource === "workspaces" ? <div className="workspace-collaboration">
+      {items.length ? <>
+        <label className="module-field">Selected workspace<select value={selectedWorkspace} onChange={e=>{setSelectedWorkspace(e.target.value);setActiveDocument(null);setInviteToken("");}}>{items.map(item=><option key={item.id} value={item.id}>{item.name||"Workspace"}</option>)}</select></label>
+        <div className="workspace-collab-grid">
+          <section className="workspace-collab-card"><h3>Members</h3>{workspaceMembers.map(member=><div className="workspace-member" key={member.userId}><span><b>{member.displayName||member.username}</b><small>@{member.username}</small></span><em>{member.role}</em></div>)}<form onSubmit={inviteToWorkspace} className="workspace-invite-form"><b>Invite a person</b><Field label="Existing username" value={inviteUsername} onChange={setInviteUsername} required/><label className="module-field">Role<select value={inviteRole} onChange={e=>setInviteRole(e.target.value)}><option value="editor">Editor</option><option value="viewer">Viewer</option></select></label><button className="btn-dark" disabled={busy||!inviteUsername.trim()}>Create invite</button>{inviteToken?<div className="workspace-invite-token"><small>One-time invitation token</small><code>{inviteToken}</code><button type="button" className="toggle" onClick={()=>navigator.clipboard?.writeText(inviteToken)}>Copy token</button></div>:null}</form></section>
+          <section className="workspace-collab-card"><h3>Shared documents</h3><div className="workspace-document-list">{workspaceDocuments.map(doc=><button type="button" key={doc.id} className={activeDocument?.id===doc.id?"workspace-document active":"workspace-document"} onClick={()=>openWorkspaceDocument(doc.id)}><b>{doc.title}</b><small>Version {doc.version}</small></button>)}</div><form onSubmit={activeDocument?saveWorkspaceDocument:createWorkspaceDocument} className="workspace-document-form"><Field label="Document title" value={documentTitle} onChange={setDocumentTitle} required/><label className="module-field">Document content<textarea value={documentContent} onChange={e=>setDocumentContent(e.target.value)} rows={6} maxLength={50000} required/></label><div className="workspace-document-actions"><button className="btn-dark" disabled={busy}>{busy?"Saving…":activeDocument?"Save new version":"Create shared document"}</button>{activeDocument?<button type="button" className="toggle" onClick={()=>{setActiveDocument(null);setDocumentTitle("");setDocumentContent("");}}>New document</button>:null}</div></form></section>
+          <section className="workspace-collab-card"><h3>Activity</h3>{workspaceActivity.length?workspaceActivity.map(event=><div className="workspace-activity" key={event.id}><b>{event.summary}</b><small>{event.type} · {new Date(event.createdAt).toLocaleString()}</small></div>):<p className="module-muted">No activity yet.</p>}</section>
+        </div>
+      </> : <p className="module-muted">Create a workspace above to invite members and collaborate on shared documents.</p>}
+    </div> : null}
     {active === "work" ? <div className="workspace-preferences"><b>Dashboard preferences</b><select value={prefs.layout} onChange={e=>savePrefs({...prefs,layout:e.target.value})}><option value="comfortable">Comfortable layout</option><option value="compact">Compact layout</option></select><label><input type="checkbox" checked={prefs.contextualPanels} onChange={e=>savePrefs({...prefs,contextualPanels:e.target.checked})}/> Contextual panels</label></div> : null}
     <form className="module-form" onSubmit={create}>
       {resource === "workspaces" ? <><Field label="Workspace name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/></> : null}

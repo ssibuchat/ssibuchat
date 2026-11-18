@@ -55,8 +55,8 @@ export async function route(req,res) {
     const p=await getPrincipal(req,db);
     if (path === "/api/workspace/preferences" || path === "/api/ai/consent" || path === "/api/ai/chat" || path.startsWith("/api/modules/")) {
       if (!p) return json(res, 401, { ok: false, error: "sign_in_required" });
-      const handled = await routeModules(req, res, db, p.user, path);
-      if (handled) return handled;
+      await routeModules(req, res, db, p.user, path);
+      return;
     }
     if(path==="/api/auth/me"&&req.method==="GET") return json(res,200,{ok:true,user:p?{id:String(p.user._id),username:p.user.username,displayName:p.user.displayName,role:p.user.role,accountType:p.user.accountType}:null});
     if(path.startsWith("/api/admin/")){

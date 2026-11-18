@@ -43,3 +43,19 @@ The PR is **not merged**. GitHub currently reports the draft PR as mergeable/cle
 ## Production gate
 
 The independent app is a tested buildable foundation, not a production-ready super-app. Do not announce production availability or enable public signups until dependency advisories are resolved, the deployment environment is configured, end-to-end/security testing passes and backup/rollback procedures are rehearsed.
+
+
+## Additional independent implementation (foundation branch)
+
+Branch: `implementation/superapp-foundations`.
+
+- Added fail-closed Origin/Referer checks to the independent application branch; missing and opaque origin metadata are rejected. The original control-character sanitizer is preserved.
+- Added owner/tenant-scoped module APIs for Workspaces, Projects, Tasks, Events, Businesses, Products, Orders, Finance records and Media metadata.
+- Added draft order snapshots with server-calculated line totals and currency consistency checks.
+- Added immutable financial record policy and integer minor-unit validation.
+- Added per-user workspace dashboard preferences.
+- Added explicit AI consent and a configurable OpenAI-compatible chat adapter. No AI request is sent until consent is enabled and provider secrets/model are configured.
+- Added collection indexes and validation tests for field allowlists, task enums, money values and control-character stripping.
+- Added security, architecture and operations documentation.
+
+This branch is under review and must pass the repository's complete CI workflow and security review before merge. Provider-dependent capabilities and the production gates listed above remain incomplete.

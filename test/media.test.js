@@ -67,3 +67,17 @@ test("media uploads remain private until object verification and malware scan pa
     assert.equal(other.status,404);
   }finally{globalThis.fetch=originalFetch;}
 });
+
+test("media objects stay unavailable when no malware scanner is configured",async()=>{
+  Object.assign(process.env,storageEnv);delete process.env.SSIBUCHAT_MEDIA_SCAN_URL;delete process.env.SSIBUCHAT_MEDIA_SCAN_TOKEN;
+  const db=makeDb(),user={_id:new ObjectId(),tenantId:"tenant-1"},originalFetch=globalThis.fetch;
+  globalThis.fetch=async()=>({ok:true,headers:{get:name=>name==="content-length"?"512":name==="content-type"?"application/pdf":null}});
+  try{
+    const created=await invoke(db,user,"POST","/api/media/uploads",{name:"document.pdf",mimeType:"application/pdf",sizeBytes:512});
+    const id=created.body.asset.id;
+    const completed=await invoke(db,user,"POST","/api/media/uploads/"+id+"/complete",{});
+    assert.equal(completed.status,202);assert.equal(completed.body.asset.status,"pending_scan");
+    const download=await invoke(db,user,"GET","/api/media/assets/"+id+"/download");
+    assert.equal(download.status,404);
+  }finally{globalThis.fetch=originalFetch;}
+});

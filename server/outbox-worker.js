@@ -57,7 +57,7 @@ export async function processOutboxBatch(db, { limit = 50, clock = () => Date.no
       const attempts = Number(event.attempts || 1);
       const dead = attempts >= MAX_ATTEMPTS;
       const delay = Math.min(MAX_BACKOFF_MS, 1000 * (2 ** Math.min(attempts, 10)));
-      const fields = { lastError: safeText(error?.message || "dispatch_failed", 160), leaseUntil: null, updatedAt: new Date(clock()) };
+      const fields = { lastError: safeText(error?.message || "dispatch_failed", 160), updatedAt: new Date(clock()) };
       if (dead) fields.deadLetteredAt = new Date(clock());
       else fields.nextAttemptAt = new Date(clock() + delay);
       await db.collection("outboxEvents").updateOne(

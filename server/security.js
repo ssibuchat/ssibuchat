@@ -4,6 +4,11 @@ const scrypt = promisify(scryptCallback);
 const COOKIE = "ssibu_session";
 const DAY = 86400000;
 export const hashToken = (value) => createHmac("sha256", process.env.SSIBUCHAT_SESSION_SECRET || "development-only-session-secret").update(String(value)).digest("hex");
+export function constantTimeEqual(left, right) {
+  const a = Buffer.from(String(left ?? ""));
+  const b = Buffer.from(String(right ?? ""));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const derived = await scrypt(String(password), salt, 64);

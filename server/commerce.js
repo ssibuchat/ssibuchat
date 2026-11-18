@@ -25,15 +25,20 @@ export async function routeCommerce(req,res,db,principal,path){
   if(path==="/api/commerce/storefronts"&&req.method==="GET"){
     const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
     const businessId=u.searchParams.get("businessId");
+    if(!businessId){
+      const businesses=await db.collection("businesses").find({tenantId:principal.tenantId}).sort({createdAt:-1}).limit(100).toArray();
+      return json(res,200,{ok:true,storefronts:businesses.map(business=>({id:String(business._id),name:business.name,merchantId:String(business.ownerId)}))});
+    }
     if(!validId(businessId))return json(res,400,{ok:false,error:"valid_business_id_required"});
     const business=await db.collection("businesses").findOne({_id:new ObjectId(businessId),tenantId:principal.tenantId});
     if(!business)return json(res,404,{ok:false,error:"storefront_not_found"});
-    const products=await db.collection("products").find({tenantId:principal.tenantId,businessId:business._id,status:"active"}).sort({createdAt:-1}).limit(100).toArray();
+    const products=await db.collection("products").find({tenantId:principal.tenantId,businessId:String(business._id),status:"active"}).sort({createdAt:-1}).limit(100).toArray();
     return json(res,200,{ok:true,storefront:{id:String(business._id),name:business.name,merchantId:String(business.ownerId)},products:products.map(product=>({id:String(product._id),name:product.name,description:product.description,priceMinor:product.priceMinor,currency:product.currency,sku:product.sku||null,available:product.trackInventory?product.stockQuantity>0:true}))});
   }
   if(path==="/api/commerce/orders"&&req.method==="GET"){
     const rows=await db.collection("orders").find({tenantId:principal.tenantId,$or:[{buyerId:principal._id},{merchantId:principal._id}]}).sort({createdAt:-1}).limit(100).toArray();
-    return json(res,200,{ok:true,orders:rows.map(row=>({id:String(row._id),businessId:String(row.businessId),buyerId:String(row.buyerId),merchantId:String(row.merchantId),items:row.items,totalMinor:row.totalMinor,currency:row.currency,status:row.status,paymentStatus:row.paymentStatus,createdAt:row.createdAt}))});
+    const ids=rows.map(row=>row._id),intents=ids.length?await db.collection("paymentIntents").find({tenantId:principal.tenantId,orderId:{$in:ids}}).toArray():[];
+    return json(res,200,{ok:true,orders:rows.map(row=>{const intent=intents.find(item=>String(item.orderId)===String(row._id));return {id:String(row._id),businessId:String(row.businessId),buyerId:String(row.buyerId),merchantId:String(row.merchantId),items:row.items,totalMinor:row.totalMinor,currency:row.currency,status:row.status,paymentStatus:row.paymentStatus,paymentIntentId:intent?String(intent._id):null,createdAt:row.createdAt};})});
   }
   if(path==="/api/commerce/orders"&&req.method==="POST"){
     const throttle=await consumeRateLimit(db,"commerce-order",String(principal._id),20,60*60*1000);

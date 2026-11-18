@@ -21,7 +21,7 @@ function makeDb() {
   ];
   const threadId = new ObjectId();
   const thread = { _id:threadId, tenantId:"tenant-1", type:"group", title:"Project team", participantIds:[users[0]._id,users[1]._id], createdBy:users[0]._id, adminIds:[users[0]._id], messageCount:0, createdAt:new Date(), updatedAt:new Date() };
-  const messages=[], receipts=[], outbox=[], audits=[], invites=[], joinRequests=[], blocks=[], reports=[], limits=new Map();
+  const messages=[], receipts=[], reactions=[], outbox=[], audits=[], invites=[], joinRequests=[], blocks=[], reports=[], limits=new Map();
   const collections = {
     users: {
       findOne: async filter => users.find(user =>
@@ -41,7 +41,7 @@ function makeDb() {
       findOne: async filter => sessions.find(session=>session.tokenHash===filter.tokenHash&&session.expiresAt>filter.expiresAt.$gt)||null
     },
     threads: {
-      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&(!filter.participantIds||thread.participantIds.some(id=>String(id)===String(filter.participantIds)))?thread:null,
+      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&(!filter.participantIds||thread.participantIds.some(id=>String(id)===String(filter.participantIds)))?thread:null,\n      find: filter => cursor([thread].filter(row=>row.tenantId===filter.tenantId&&row.participantIds.some(id=>String(id)===String(filter.participantIds)))),
       updateOne: async (filter,update) => {
         if(String(filter._id)!==String(thread._id))return {modifiedCount:0};
         if(update.$set)Object.assign(thread,update.$set);
@@ -56,6 +56,7 @@ function makeDb() {
     },
     messages: {
       insertOne: async message => { message._id=new ObjectId();messages.push(message);return {insertedId:message._id}; },
+      updateOne: async (filter,update) => {const message=messages.find(row=>String(row._id)===String(filter._id)&&row.tenantId===filter.tenantId&&(!filter.senderId||String(row.senderId)===String(filter.senderId))&&(!filter.deletedAt?.$exists||!row.deletedAt));if(!message)return {matchedCount:0};Object.assign(message,update.$set);return {matchedCount:1};},
       findOne: async filter => messages.find(message=>String(message._id)===String(filter._id)&&message.tenantId===filter.tenantId&&String(message.senderId)===String(filter.senderId))||null,
       find: filter => cursor(messages.filter(message=>
         (!filter.tenantId||message.tenantId===filter.tenantId)&&
@@ -110,6 +111,11 @@ function makeDb() {
       find: filter => cursor(joinRequests.filter(item=>item.tenantId===filter.tenantId&&String(item.threadId)===String(filter.threadId)&&item.status===filter.status)),
       updateOne: async (filter,update) => {const item=joinRequests.find(row=>String(row._id)===String(filter._id)&&row.status===filter.status);if(!item)return {modifiedCount:0};Object.assign(item,update.$set);return {modifiedCount:1};}
     },
+    messageReactions: {
+      updateOne: async (filter,update) => {let row=reactions.find(item=>item.tenantId===filter.tenantId&&String(item.messageId)===String(filter.messageId)&&String(item.userId)===String(filter.userId)&&item.emoji===filter.emoji);if(!row&&update.$setOnInsert){row={...update.$setOnInsert};reactions.push(row);return {upsertedCount:1};}return {matchedCount:row?1:0};},
+      find: filter => cursor(reactions.filter(row=>row.tenantId===filter.tenantId&&String(row.messageId)===String(filter.messageId))),
+      deleteOne: async filter => {const index=reactions.findIndex(row=>row.tenantId===filter.tenantId&&String(row.messageId)===String(filter.messageId)&&String(row.userId)===String(filter.userId)&&row.emoji===filter.emoji);if(index<0)return {deletedCount:0};reactions.splice(index,1);return {deletedCount:1};}
+    },
     messageReceipts: {
       updateOne: async (filter,update) => {
         let row=receipts.find(item=>item.tenantId===filter.tenantId&&String(item.messageId)===String(filter.messageId)&&String(item.userId)===String(filter.userId));
@@ -132,7 +138,7 @@ function makeDb() {
     rateLimits: { findOneAndUpdate: async filter => {const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};} },
     auditEvents: { insertOne: async event => {audits.push(event);return {insertedId:new ObjectId()};} }
   };
-  function cursor(items){return {sort(){return this;},limit(){return this;},toArray:async()=>items};}
+  function cursor(items){return {sort(){return this;},limit(){return this;},project(){return this;},toArray:async()=>items};}
   return { users, sessions, thread, messages, receipts, invites, joinRequests, blocks, reports, senderToken, recipientToken, thirdToken, threadId, collection:name=>collections[name] };
 }
 async function invoke(db, token, method, url, body={}) {
@@ -217,4 +223,26 @@ test("block controls prevent direct conversations and reports enter admin review
   const reviewed=await invoke(db,db.senderToken,"PATCH","/api/admin/reports/"+report.body.reportId,{status:"resolved"});
   assert.equal(reviewed.status,200);
   assert.equal(db.reports[0].status,"resolved");
+});
+
+test("messages can be edited, reacted to, searched and soft-deleted",async()=>{
+  const db=makeDb();
+  const sent=await invoke(db,db.senderToken,"POST","/api/messages",{threadId:String(db.threadId),text:"Original message",idempotencyKey:"edit-react-search-1"});
+  assert.equal(sent.status,201);
+  const messageId=sent.body.message.id;
+  const edited=await invoke(db,db.senderToken,"PATCH","/api/messages/"+messageId,{text:"Updated message"});
+  assert.equal(edited.status,200);
+  const reacted=await invoke(db,db.recipientToken,"POST","/api/messages/"+messageId+"/reactions",{emoji:"👍"});
+  assert.equal(reacted.status,200);
+  const reactions=await invoke(db,db.senderToken,"GET","/api/messages/"+messageId+"/reactions");
+  assert.equal(reactions.body.reactions.length,1);
+  const search=await invoke(db,db.recipientToken,"GET","/api/search/messages?q=Updated");
+  assert.equal(search.status,200);
+  assert.equal(search.body.messages.length,1);
+  const removedReaction=await invoke(db,db.recipientToken,"DELETE","/api/messages/"+messageId+"/reactions/"+encodeURIComponent("👍"));
+  assert.equal(removedReaction.status,200);
+  const deleted=await invoke(db,db.senderToken,"DELETE","/api/messages/"+messageId);
+  assert.equal(deleted.status,200);
+  const afterDelete=await invoke(db,db.recipientToken,"GET","/api/search/messages?q=Updated");
+  assert.equal(afterDelete.body.messages.length,0);
 });

@@ -16,7 +16,8 @@ function makeDb() {
   const senderToken = randomBytes(32).toString("base64url"), recipientToken = randomBytes(32).toString("base64url"), thirdToken = randomBytes(32).toString("base64url");
   const sessions = [
     { _id:new ObjectId(), tokenHash:hashToken(senderToken), userId:users[0]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() },
-    { _id:new ObjectId(), tokenHash:hashToken(recipientToken), userId:users[1]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() },\n    { _id:new ObjectId(), tokenHash:hashToken(thirdToken), userId:users[2]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() }
+    { _id:new ObjectId(), tokenHash:hashToken(recipientToken), userId:users[1]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() },
+    { _id:new ObjectId(), tokenHash:hashToken(thirdToken), userId:users[2]._id, tenantId:"tenant-1", expiresAt:new Date(Date.now()+3600000), createdAt:new Date() }
   ];
   const threadId = new ObjectId();
   const thread = { _id:threadId, tenantId:"tenant-1", type:"group", title:"Project team", participantIds:[users[0]._id,users[1]._id], createdBy:users[0]._id, adminIds:[users[0]._id], messageCount:0, createdAt:new Date(), updatedAt:new Date() };

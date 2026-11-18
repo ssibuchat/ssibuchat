@@ -24,7 +24,22 @@ This repository is the independent product codebase for [ssibuchat.vercel.app](h
 
 ## Current implementation status
 
-This first commit establishes the independent product foundation and implementation blueprint. It is **not yet a production-complete super-app**. See [the audit](docs/GLOBAL_PRODUCT_AUDIT.md), [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/IMPLEMENTATION_ROADMAP.md) for the full scope and acceptance gates.
+The independent foundation branch now includes separate identity and tester controls, Connect messaging foundations, owner-scoped Work/Commerce/Finance/Media services, dashboard preferences, opt-in AI provider boundary, responsive pillar workspaces, rate limiting, security headers and automated tests. The current implementation is **not yet a production-complete super-app** and is kept in a draft pull request pending review. See [the audit](docs/GLOBAL_PRODUCT_AUDIT.md), [architecture](docs/ARCHITECTURE.md), [security controls](docs/SECURITY.md), [operations](docs/OPERATIONS.md) and [complete roadmap](docs/IMPLEMENTATION_ROADMAP.md) for exact scope and acceptance gates.
+
+### Implemented foundations
+
+- Independent registration, login, logout, opaque sessions, one-time admin bootstrap and tester policy.
+- Direct/group thread creation, participant-authorized history and idempotent message writes with repairable outbox.
+- Workspaces, projects, tasks and calendar-event records.
+- Business profiles, product records and draft order snapshots.
+- Immutable finance bookkeeping records in integer minor units.
+- Media metadata records (not file uploads).
+- Per-user dashboard preferences and explicit AI consent/provider adapter.
+- MongoDB-backed rate limiting, origin validation and production browser security headers.
+
+### Not production complete
+
+Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, MFA/recovery, email verification, full AI retrieval/governance and production operations remain incomplete. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
 
 ## Local development
 

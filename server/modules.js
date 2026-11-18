@@ -47,9 +47,33 @@ export function projectInput(key, input) {
   if (key === "finance" && (result.amountMinor === undefined || !result.currency || !result.type)) throw new Error("finance_amount_currency_and_type_required");
   return result;
 }
+async function workspaceRole(db, workspaceId, principal) {
+  if (!validId(workspaceId)) return null;
+  const workspace = await db.collection("workspaces").findOne({ _id:new ObjectId(workspaceId), tenantId:principal.tenantId });
+  if (!workspace) return null;
+  if (String(workspace.ownerId) === String(principal._id)) return "owner";
+  const member = await db.collection("workspaceMembers").findOne({ tenantId:principal.tenantId, workspaceId:workspace._id, userId:principal._id, status:"active" });
+  return member?.role || null;
+}
 async function ownedReference(db, collection, id, principal) {
   if (!validId(id)) return null;
-  return db.collection(collection).findOne({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id });
+  const row = await db.collection(collection).findOne({ _id:new ObjectId(id), tenantId:principal.tenantId });
+  if (!row) return null;
+  if (String(row.ownerId) === String(principal._id)) return row;
+  if (row.workspaceId && await workspaceRole(db,row.workspaceId,principal)) return row;
+  return null;
+}
+async function canEditWorkspace(db, workspaceId, principal) {
+  const role = await workspaceRole(db,workspaceId,principal);
+  return role === "owner" || role === "editor";
+}
+async function recordWorkActivity(db, principal, workspaceId, type, aggregateId, summary) {
+  if (!workspaceId) return;
+  await db.collection("workspaceActivity").insertOne({ tenantId:principal.tenantId, workspaceId:new ObjectId(workspaceId), actorId:principal._id, type, aggregateId:aggregateId||null, summary:safeText(summary,180), createdAt:new Date() });
+}
+async function sharedWorkspaceIds(db, principal) {
+  const rows = await db.collection("workspaceMembers").find({ tenantId:principal.tenantId, userId:principal._id, status:"active" }).toArray();
+  return rows.map(row=>row.workspaceId);
 }
 async function allowWrite(db, res, principal, scope, limit, windowMs) {
   const result = await consumeRateLimit(db, scope, String(principal._id), limit, windowMs);
@@ -126,6 +150,9 @@ export async function routeModules(req, res, db, principal, path) {
       const memberships = await db.collection("workspaceMembers").find({ tenantId: principal.tenantId, userId: principal._id, status: "active" }).toArray();
       const ids = memberships.map(row => row.workspaceId);
       rows = await collection.find({ tenantId: principal.tenantId, $or: [{ ownerId: principal._id }, { _id: { $in: ids } }] }).sort({ updatedAt: -1 }).limit(100).toArray();
+    } else if (["projects","tasks","events"].includes(key)) {
+      const workspaceIds = await sharedWorkspaceIds(db,principal);
+      rows = await collection.find({ tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] }).sort({ updatedAt:-1 }).limit(100).toArray();
     } else {
       rows = await collection.find({ tenantId: principal.tenantId, ownerId: principal._id }).sort({ updatedAt: -1 }).limit(100).toArray();
     }
@@ -134,12 +161,22 @@ export async function routeModules(req, res, db, principal, path) {
   if (req.method === "POST" && !id) {
     if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     const body = await readBody(req), fields = projectInput(key, body);
-    if (key === "projects" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
-    if (key === "tasks") {
-      if (fields.projectId && !(await ownedReference(db, "projects", fields.projectId, principal))) return json(res, 404, { ok: false, error: "project_not_found" });
-      if (fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    if (key === "projects" && fields.workspaceId) {
+      if (!(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (!(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
     }
-    if (key === "events" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    if (key === "tasks") {
+      const project = fields.projectId ? await ownedReference(db,"projects",fields.projectId,principal) : null;
+      if (fields.projectId && !project) return json(res,404,{ok:false,error:"project_not_found"});
+      if (project?.workspaceId && !fields.workspaceId) fields.workspaceId=String(project.workspaceId);
+      if (fields.workspaceId && !(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (fields.workspaceId && !(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+      if (project?.workspaceId && fields.workspaceId && String(project.workspaceId)!==String(fields.workspaceId)) return json(res,400,{ok:false,error:"project_workspace_mismatch"});
+    }
+    if (key === "events" && fields.workspaceId) {
+      if (!(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (!(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+    }
     if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
     if (key === "orders") {
       const business = await ownedReference(db, "businesses", body.businessId, principal);
@@ -157,7 +194,8 @@ export async function routeModules(req, res, db, principal, path) {
       }
       const row = { tenantId: principal.tenantId, ownerId: principal._id, businessId: business._id, items, currency, totalMinor, note: safeText(body.note, 1000), status: "draft", paymentStatus: "not_started", createdAt: new Date(), updatedAt: new Date() };
       const result = await collection.insertOne(row);
-      return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
+      if (["projects","tasks","events"].includes(key) && row.workspaceId) await recordWorkActivity(db,principal,row.workspaceId,"work."+key.slice(0,-1)+".create",result.insertedId,"A work item was created");
+    return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
     }
     if (key === "finance") fields.status = fields.status || "recorded";
     const row = { ...fields, tenantId: principal.tenantId, ownerId: principal._id, createdAt: new Date(), updatedAt: new Date() };
@@ -172,21 +210,42 @@ export async function routeModules(req, res, db, principal, path) {
     if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     if (key === "orders" || key === "finance") return json(res, 403, { ok: false, error: "financial_records_are_immutable" });
     const fields = projectInput(key, await readBody(req));
-    if (key === "projects" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
-    if (key === "tasks") {
-      if (fields.projectId && !(await ownedReference(db, "projects", fields.projectId, principal))) return json(res, 404, { ok: false, error: "project_not_found" });
-      if (fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    const workspaceIds = await sharedWorkspaceIds(db,principal);
+    const existing = await collection.findOne({ _id:new ObjectId(id), tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] });
+    if (!existing) return json(res,404,{ok:false,error:"item_not_found"});
+    if (existing.workspaceId && !(await canEditWorkspace(db,existing.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+    if (key === "projects" && fields.workspaceId) {
+      if (!(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (!(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
     }
-    if (key === "events" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    if (key === "tasks") {
+      const project = fields.projectId ? await ownedReference(db,"projects",fields.projectId,principal) : null;
+      if (fields.projectId && !project) return json(res,404,{ok:false,error:"project_not_found"});
+      if (project?.workspaceId && !fields.workspaceId) fields.workspaceId=String(project.workspaceId);
+      if (fields.workspaceId && !(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (fields.workspaceId && !(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+      if (project?.workspaceId && fields.workspaceId && String(project.workspaceId)!==String(fields.workspaceId)) return json(res,400,{ok:false,error:"project_workspace_mismatch"});
+    }
+    if (key === "events" && fields.workspaceId) {
+      if (!(await ownedReference(db,"workspaces",fields.workspaceId,principal))) return json(res,404,{ok:false,error:"workspace_not_found"});
+      if (!(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+    }
     if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
-    const result = await collection.findOneAndUpdate({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id }, { $set: { ...fields, updatedAt: new Date() } }, { returnDocument: "after" });
+    if (fields.workspaceId && !(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+    const result = await collection.findOneAndUpdate({ _id:new ObjectId(id), tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] }, { $set:{...fields,updatedAt:new Date()} }, { returnDocument:"after" });
+    if (result?.workspaceId) await recordWorkActivity(db,principal,result.workspaceId,"work."+key.slice(0,-1)+".update",result._id,"A work item was updated");
     if (!result) return json(res, 404, { ok: false, error: "item_not_found" });
     return json(res, 200, { ok: true, item: serialize(result) });
   }
   if (req.method === "DELETE" && id) {
     if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     if (key === "orders" || key === "finance") return json(res, 403, { ok: false, error: "financial_records_are_immutable" });
-    const result = await collection.deleteOne({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id });
+    const workspaceIds = await sharedWorkspaceIds(db,principal);
+    const existing = await collection.findOne({ _id:new ObjectId(id), tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] });
+    if (!existing) return json(res,404,{ok:false,error:"item_not_found"});
+    if (existing.workspaceId && !(await canEditWorkspace(db,existing.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
+    const result = await collection.deleteOne({ _id:new ObjectId(id), tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] });
+    if (existing.workspaceId) await recordWorkActivity(db,principal,existing.workspaceId,"work."+key.slice(0,-1)+".delete",existing._id,"A work item was deleted");
     return json(res, result.deletedCount ? 200 : 404, { ok: result.deletedCount === 1, error: result.deletedCount ? undefined : "item_not_found" });
   }
   return json(res, 405, { ok: false, error: "method_not_allowed" });

@@ -15,7 +15,7 @@ This roadmap is the complete delivery register. A phase is not complete because 
 - [x] Independent account registration, password hashing, login/logout and opaque server-side sessions; one-time admin bootstrap endpoint.\n- [ ] Account recovery, email verification, MFA and device/session management.
 - [x] Independent tester policy and admin controls; disabled by default and enforced server-side, with session revocation when switched off. No PTU MAC dependency.
 - [ ] Tenant/membership model, schema migrations, audit events and rate limiting.
-- [x] GitHub Actions CI for unit tests and production build.\n- [ ] Add lint, typecheck, integration/E2E tests and dependency/security remediation.
+- [x] GitHub Actions CI for unit tests and production build.\n- [ ] Commit a dependency lockfile and switch CI/release installs to `npm ci`.\n- [ ] Add lint, typecheck, integration/E2E tests and resolve the dev-toolchain Picomatch advisory when a patched release is available.
 - [ ] Accessibility and responsive design baseline (WCAG 2.2 AA target).
 
 ## Phase 2 — Secure Connect core

@@ -121,7 +121,7 @@ test("email change requires the current password, verifies the new address and a
     assert.equal(requested.status,202);
     assert.equal(emails.length,1);
     assert.equal(emails[0].to[0],"new-address@example.test");
-    const tokenText=emails[0].text.match(/confirmEmailChange=([^\\s]+)/)?.[1];
+    const tokenText=emails[0].text.match(/confirmEmailChange=([^\s]+)/)?.[1];
     const token=decodeURIComponent(tokenText);
     const confirmed=await invoke(db,null,"POST","/api/auth/email/change/confirm",{token});
     assert.equal(confirmed.status,200);

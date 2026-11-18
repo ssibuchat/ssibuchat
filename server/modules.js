@@ -125,7 +125,7 @@ export async function routeModules(req, res, db, principal, path) {
     if (key === "workspaces") {
       const memberships = await db.collection("workspaceMembers").find({ tenantId: principal.tenantId, userId: principal._id, status: "active" }).toArray();
       const ids = memberships.map(row => row.workspaceId);
-      rows = ids.length ? await collection.find({ tenantId: principal.tenantId, _id: { $in: ids } }).sort({ updatedAt: -1 }).limit(100).toArray() : [];
+      rows = await collection.find({ tenantId: principal.tenantId, $or: [{ ownerId: principal._id }, { _id: { $in: ids } }] }).sort({ updatedAt: -1 }).limit(100).toArray();
     } else {
       rows = await collection.find({ tenantId: principal.tenantId, ownerId: principal._id }).sort({ updatedAt: -1 }).limit(100).toArray();
     }

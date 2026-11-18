@@ -27,8 +27,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Independent account registration, scrypt password hashing, login/logout and opaque server-side sessions.
 - [x] One-time independent administrator bootstrap requiring deployment secrets.
 - [x] Independent tester accounts, enable/disable policy and session revocation; no PTU MAC dependency.
-- [x] Fail-closed same-origin checks for cookie-authenticated mutations, with same-origin Referer fallback.
-- [x] Persistent MongoDB-backed throttling for bootstrap, registration and login.
+- [x] Fail-closed same-origin checks for cookie-authenticated mutations, comparing scheme and host, with same-origin Referer fallback.
+- [x] Persistent MongoDB-backed throttling for bootstrap, registration, login, thread starts, message sends, module writes and AI requests.
 - [x] Owner/tenant-scoped module record boundaries and indexes.
 - [ ] Complete tenant membership/role model, schema-versioned migrations and admin audit UI.
 - [ ] Account email verification, password recovery, MFA, passkeys, device/session management and security notifications.
@@ -38,7 +38,7 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [ ] Commit a deterministic package lockfile and switch CI/release installs to `npm ci`.
 - [ ] Resolve/reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them.
 - [ ] Add lint, typecheck, API integration, browser E2E, accessibility and load tests.
-- [ ] Verify the latest code after the validated CI commit; newer UI, security-header and Connect reliability commits require their own CI run.
+- [x] Verify current branch head `bdc8bdae3b19749e03199e410fbc5094a10a921f`: 15 tests passed, production build passed, and production dependency audit found zero vulnerabilities.
 - [ ] WCAG 2.2 AA audit, keyboard navigation, screen-reader checks, contrast, focus management and reduced-motion support.
 
 ## Phase 2 — Connect

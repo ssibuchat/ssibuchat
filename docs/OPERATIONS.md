@@ -1,0 +1,50 @@
+# SsibuChat Independent Deployment & Operations
+
+## Deployment boundary
+Create a dedicated Vercel project connected only to `ssibuchat/ssibuchat`. Do not attach the PTU project, PTU environment variables, PTU MongoDB database or PTU session cookies.
+
+## MongoDB Atlas
+1. Create a dedicated Atlas project/database for SsibuChat.
+2. Create a least-privilege database user restricted to the product database.
+3. Restrict network access to the deployment environment where practical; do not leave broad public access enabled.
+4. Configure automated backups and point-in-time recovery according to the selected Atlas tier.
+5. Review and rehearse restoration before production data is accepted.
+
+## Vercel environment
+Configure `MONGODB_URI`, `MONGODB_DB`, `SSIBUCHAT_BOOTSTRAP_SECRET`, and `SSIBUCHAT_SESSION_SECRET` in the independent project only. Use unique, high-entropy secrets. Do not place secrets in source, client-side variables, build logs or support tickets.
+
+## First administrator
+1. Deploy the application to a private preview URL.
+2. Call `POST /api/auth/bootstrap` once with the bootstrap secret, a valid email and a password of at least 12 characters.
+3. The bootstrap endpoint permanently refuses a second bootstrap once an admin exists.
+4. Remove/rotate the bootstrap secret after successful setup and verify admin login.
+5. Tester access defaults to disabled. The independent admin can create tester accounts and enable access using `/api/admin/testers` and `PATCH /api/admin/testers/access`.
+
+## Current API surface
+- `GET /api/health`
+- `POST /api/auth/bootstrap`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/admin/testers`
+- `POST /api/admin/testers`
+- `PATCH /api/admin/testers/access`
+- `GET /api/threads`
+- `POST /api/messages`
+
+The current Connect API is a foundation, not yet a complete chat service. Thread creation, message history, group fan-out, receipts, attachments, event consumers and push transport remain roadmap work.
+
+## Operational limitations to close before launch
+- Add distributed rate limiting and login abuse detection.
+- Add CSRF token enforcement in addition to same-origin checks.
+- Add email verification, password recovery, MFA and device/session management.
+- Add a transactional outbox consumer and push provider.
+- Configure object storage, malware scanning and retention.
+- Configure provider-specific signed webhook verification and replay protection.
+- Configure TURN and WebRTC signaling before advertising calls.
+- Add alerting, audit exports, incident response and backup restore drills.
+- Complete accessibility, load, integration and security testing on the real deployment.
+
+## Safe rollout
+Preview → automated tests → staging data → backup/restore rehearsal → security review → production canary → monitored gradual rollout. PTU-hosted SsibuChat is not cut over or modified by independent deployment.

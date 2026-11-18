@@ -52,6 +52,8 @@ export async function ensureIndexes(db) {
     db.collection("orders").createIndex({ tenantId: 1, merchantId: 1, createdAt: -1 }),
     db.collection("paymentIntents").createIndex({ tenantId: 1, orderId: 1, idempotencyKey: 1 }, { unique: true }),
     db.collection("paymentIntents").createIndex({ tenantId: 1, orderId: 1, status: 1 }),
+    db.collection("mediaAssets").createIndex({ storageKey: 1 }, { unique: true }),
+    db.collection("mediaAssets").createIndex({ tenantId: 1, ownerId: 1, createdAt: -1 }),
     ...["workspaces","projects","tasks","calendarEvents","businesses","products","orders","financeRecords","mediaAssets"].map(name => db.collection(name).createIndex({ tenantId: 1, ownerId: 1, updatedAt: -1 })),
     db.collection("workspacePreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
     db.collection("workspaceMembers").createIndex({ tenantId: 1, workspaceId: 1, userId: 1 }, { unique: true }),

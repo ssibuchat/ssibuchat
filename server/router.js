@@ -179,6 +179,66 @@ export async function route(req,res,database = null) {
         await audit(db,p.user,b.enabled?"tester-access.enable":"tester-access.disable");return json(res,200,{ok:true,policy:await policy(db)});
       }
     }
+    if(path==="/api/people/blocked"&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const rows=await db.collection("blocks").find({tenantId:p.user.tenantId,userId:p.user._id}).sort({createdAt:-1}).limit(100).toArray();
+      const ids=rows.map(row=>row.blockedUserId);
+      const users=ids.length?await db.collection("users").find({_id:{$in:ids}},{projection:{passwordHash:0,email:0,emailNormalized:0}}).toArray():[];
+      return json(res,200,{ok:true,blocked:rows.map(row=>{const user=users.find(item=>String(item._id)===String(row.blockedUserId));return {userId:String(row.blockedUserId),username:user?.username||null,displayName:user?.displayName||null,createdAt:row.createdAt};})});
+    }
+    if(path==="/api/people/blocked"&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const b=await readBody(req),username=usernameNorm(b.username);
+      const target=await db.collection("users").findOne({tenantId:p.user.tenantId,status:"active",usernameNormalized:username});
+      if(!target)return json(res,404,{ok:false,error:"person_not_found"});
+      if(String(target._id)===String(p.user._id))return json(res,400,{ok:false,error:"cannot_block_self"});
+      try{await db.collection("blocks").insertOne({tenantId:p.user.tenantId,userId:p.user._id,blockedUserId:target._id,createdAt:now()});}
+      catch(error){if(error?.code!==11000)throw error;}
+      await audit(db,p.user,"people.block",String(target._id));
+      return json(res,200,{ok:true,blocked:true});
+    }
+    const unblockMatch=path.match(/^\/api\/people\/blocked\/([a-f0-9]{24})$/i);
+    if(unblockMatch&&req.method==="DELETE"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const result=await db.collection("blocks").deleteOne({tenantId:p.user.tenantId,userId:p.user._id,blockedUserId:new ObjectId(unblockMatch[1])});
+      await audit(db,p.user,"people.unblock",unblockMatch[1]);
+      return json(res,200,{ok:true,unblocked:(result.deletedCount||0)>0});
+    }
+    if(path==="/api/reports"&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const throttle=await consumeRateLimit(db,"content-report",String(p.user._id),5,60*60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
+      const b=await readBody(req),targetType=String(b.targetType||""),targetId=String(b.targetId||""),reason=safeText(b.reason,500),details=safeText(b.details,1000);
+      if(!["user","message","group"].includes(targetType)||!ObjectId.isValid(targetId)||!reason)return json(res,400,{ok:false,error:"valid_target_and_reason_required"});
+      let target=null;
+      if(targetType==="user")target=await db.collection("users").findOne({_id:new ObjectId(targetId),tenantId:p.user.tenantId,status:"active"});
+      if(targetType==="message"){
+        target=await db.collection("messages").findOne({_id:new ObjectId(targetId),tenantId:p.user.tenantId});
+        if(target){const thread=await db.collection("threads").findOne({_id:target.threadId,tenantId:p.user.tenantId,participantIds:p.user._id});if(!thread)target=null;}
+      }
+      if(targetType==="group")target=await db.collection("threads").findOne({_id:new ObjectId(targetId),tenantId:p.user.tenantId,type:"group",participantIds:p.user._id});
+      if(!target)return json(res,404,{ok:false,error:"report_target_not_found"});
+      if(targetType==="user"&&String(target._id)===String(p.user._id))return json(res,400,{ok:false,error:"cannot_report_self"});
+      const report={tenantId:p.user.tenantId,reporterId:p.user._id,targetType,targetId:new ObjectId(targetId),reason,details,status:"pending",createdAt:now(),updatedAt:now()};
+      const created=await db.collection("reports").insertOne(report);
+      await audit(db,p.user,"content.report",String(created.insertedId));
+      return json(res,201,{ok:true,reportId:String(created.insertedId),status:"pending"});
+    }
+    if(path==="/api/admin/reports"&&req.method==="GET"){
+      if(!p||p.user.role!=="admin")return json(res,403,{ok:false,error:"admin_required"});
+      const rows=await db.collection("reports").find({tenantId:p.user.tenantId}).sort({createdAt:-1}).limit(100).toArray();
+      return json(res,200,{ok:true,reports:rows.map(row=>({id:String(row._id),reporterId:String(row.reporterId),targetType:row.targetType,targetId:String(row.targetId),reason:row.reason,details:row.details,status:row.status,createdAt:row.createdAt}))});
+    }
+    const reportReviewMatch=path.match(/^\/api\/admin\/reports\/([a-f0-9]{24})$/i);
+    if(reportReviewMatch&&req.method==="PATCH"){
+      if(!p||p.user.role!=="admin")return json(res,403,{ok:false,error:"admin_required"});
+      const b=await readBody(req),status=b.status;
+      if(!["reviewing","resolved","dismissed"].includes(status))return json(res,400,{ok:false,error:"invalid_report_status"});
+      const result=await db.collection("reports").updateOne({_id:new ObjectId(reportReviewMatch[1]),tenantId:p.user.tenantId},{$set:{status,reviewedBy:p.user._id,reviewedAt:now(),updatedAt:now()}});
+      if(result.matchedCount!==1)return json(res,404,{ok:false,error:"report_not_found"});
+      await audit(db,p.user,"content.report.review",reportReviewMatch[1]);
+      return json(res,200,{ok:true,status});
+    }
     if(path==="/api/people"&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
@@ -198,6 +258,11 @@ export async function route(req,res,database = null) {
       if(users.length!==normalized.length)return json(res,404,{ok:false,error:"one_or_more_people_not_found"});
       const participantIds=[p.user._id,...users.map(u=>u._id)];
       const type=participantIds.length===2?"direct":"group";
+      if(type==="direct"){
+        const otherId=users[0]._id;
+        const blocked=await db.collection("blocks").findOne({tenantId:p.user.tenantId,$or:[{userId:p.user._id,blockedUserId:otherId},{userId:otherId,blockedUserId:p.user._id}]});
+        if(blocked)return json(res,403,{ok:false,error:"conversation_blocked"});
+      }
       if(type==="direct"){
         const existing=await db.collection("threads").findOne({tenantId:p.user.tenantId,type:"direct",participantIds:{$all:participantIds,$size:2}});
         if(existing)return json(res,200,{ok:true,thread:{id:String(existing._id),title:existing.title,type:existing.type},existing:true});
@@ -409,6 +474,11 @@ export async function route(req,res,database = null) {
       if(!ObjectId.isValid(threadId)||!text||!key)return json(res,400,{ok:false,error:"thread_text_and_idempotency_key_required"});
       const thread=await db.collection("threads").findOne({_id:new ObjectId(threadId),tenantId:p.user.tenantId,participantIds:p.user._id});
       if(!thread)return json(res,404,{ok:false,error:"thread_not_found"});
+      if(thread.type==="direct"){
+        const otherId=thread.participantIds.find(id=>String(id)!==String(p.user._id));
+        const blocked=await db.collection("blocks").findOne({tenantId:p.user.tenantId,$or:[{userId:p.user._id,blockedUserId:otherId},{userId:otherId,blockedUserId:p.user._id}]});
+        if(blocked)return json(res,403,{ok:false,error:"conversation_blocked"});
+      }
       let created = true;
       const msg={tenantId:p.user.tenantId,threadId:thread._id,senderId:p.user._id,text,idempotencyKey:key,status:"accepted",createdAt:now()};
       try {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "node:crypto";
 import { route } from "../server/router.js";
-import { hashToken, verifyPassword } from "../server/security.js";
+import { hashPassword, hashToken, verifyPassword } from "../server/security.js";
 
 process.env.SSIBUCHAT_SESSION_SECRET="test-session-pepper-for-email-auth";
 process.env.RESEND_API_KEY="test-resend-key";
@@ -71,4 +71,39 @@ test("email verification and password recovery tokens are emailed, single-use an
     const resetReplay=await invoke(db,null,"POST","/api/auth/password-reset/confirm",{token:resetToken,password:"Another-new-password-2026"});
     assert.equal(resetReplay.status,400);
   }finally{globalThis.fetch=originalFetch;}
+});
+
+
+test("authenticated password change verifies the current password, revokes sessions and sends a security notice",async()=>{
+  const db=makeDb(),originalFetch=globalThis.fetch,emails=[];
+  db.user.emailVerified=true;
+  db.user.passwordHash=await hashPassword("old-current-password");
+  globalThis.fetch=async(url,options)=>{emails.push(JSON.parse(options.body));return {ok:true,json:async()=>({id:"security-notice-test"})};};
+  try{
+    const rejected=await invoke(db,db.sessionToken,"POST","/api/account/password/change",{currentPassword:"wrong-password",newPassword:"a-new-secure-password"});
+    assert.equal(rejected.status,401);
+    assert.equal(rejected.body.error,"current_password_incorrect");
+    assert.equal(db.sessions.length,1);
+    const changed=await invoke(db,db.sessionToken,"POST","/api/account/password/change",{currentPassword:"old-current-password",newPassword:"a-new-secure-password"});
+    assert.equal(changed.status,200);
+    assert.equal(changed.body.passwordChanged,true);
+    assert.equal(changed.body.signedOutEverywhere,true);
+    assert.equal(changed.body.securityNoticeSent,true);
+    assert.equal(db.sessions.length,0);
+    assert.equal(await verifyPassword("a-new-secure-password",db.user.passwordHash),true);
+    assert.equal(await verifyPassword("old-current-password",db.user.passwordHash),false);
+    assert.equal(emails.length,1);
+    assert.match(emails[0].subject,/password was changed/i);
+    assert.ok(db.audits.some(event=>event.action==="account.password.change"));
+  }finally{globalThis.fetch=originalFetch;}
+});
+
+test("password change rejects short and unchanged passwords without revoking the session",async()=>{
+  const db=makeDb();
+  db.user.passwordHash=await hashPassword("old-current-password");
+  const short=await invoke(db,db.sessionToken,"POST","/api/account/password/change",{currentPassword:"old-current-password",newPassword:"short"});
+  assert.equal(short.status,400);
+  const same=await invoke(db,db.sessionToken,"POST","/api/account/password/change",{currentPassword:"old-current-password",newPassword:"old-current-password"});
+  assert.equal(same.status,400);
+  assert.equal(db.sessions.length,1);
 });

@@ -23,3 +23,8 @@ State-changing browser requests fail closed if Origin and Referer are both absen
 
 ## Production gates
 Before launch: independent security review, rate limiting, MFA/recovery, email verification, CSP/HSTS, dependency scanning, backup/restore exercise, log redaction, incident response, data retention/deletion workflows and provider-specific compliance review. Keep secrets in deployment secret stores, never source control.
+
+
+## Password changes and account security notices
+
+Authenticated users can change their password through `POST /api/account/password/change`. The endpoint requires the current password, enforces a 12–128 character new-password length, rejects reuse of the current password, applies a persistent per-account rate limit, and uses a conditional update to prevent concurrent changes from overwriting each other. A successful change revokes every active session, records an audit event, clears the session cookie and attempts a security notification to the verified account email. Email delivery failure does not roll back the password change; the response reports whether the notice was sent. Passwords and reset/change tokens are never included in audit records or email notices.

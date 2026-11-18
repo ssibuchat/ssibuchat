@@ -116,6 +116,6 @@ export default function ModuleWorkspace({ active, user }) {
     {resource === "finance" ? <p className="module-muted">These are immutable bookkeeping records, not a wallet or payment account.</p> : null}
     {message ? <p className="module-success" role="status">{message}</p> : null}
     {error ? <p className="form-error">{error}</p> : null}
-    <div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""}</small><span>{item.description||item.note||item.reference||""}</span></article>) : <p className="module-muted">No records yet.</p>}</div>
+    <div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""} · ID: {item.id}</small><span>{item.description||item.note||item.reference||""}</span></article>) : <p className="module-muted">No records yet.</p>}</div>
   </section>;
 }

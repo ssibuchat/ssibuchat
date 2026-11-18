@@ -9,6 +9,7 @@ function makeDb() {
   let migration=null;
   const collections={
     schemaMigrations:{
+      findOne:async filter=>migration?.id===filter.id&&migration?.status===filter.status?migration:null,
       findOneAndUpdate:async(filter,update)=>{if(migration?.status==="completed"||(migration?.leaseUntil&&migration.leaseUntil>new Date())){const e=new Error("duplicate");e.code=11000;throw e;}migration={...(migration||{}),id:filter.id,...update.$set};return migration;},
       updateOne:async(filter,update)=>{if(!migration||migration.leaseToken!==filter.leaseToken)return {matchedCount:0};Object.assign(migration,update.$set);for(const key of Object.keys(update.$unset||{}))delete migration[key];return {matchedCount:1};}
     },

@@ -38,3 +38,8 @@ Authenticated email changes require the current password and are rate-limited. T
 ## Administrative audit visibility
 
 Independent administrators can inspect a bounded recent-event feed for their own tenant. The API selects an explicit allowlist of event fields and never returns arbitrary stored audit documents, credentials, tokens or message bodies. Non-admin users are denied. The audit view does not grant cross-tenant access; broader platform-wide audit and export workflows remain separate governance work.
+
+
+## Credential and MFA security notifications
+
+Password changes and password resets attempt a notice to the verified account email after the credential update. MFA enablement and disablement also attempt a notice to the verified email. Email delivery failures are non-fatal and are reported separately from the credential/MFA operation; the action remains audited. This is an event-notification baseline, not yet a complete device-aware login alerting or user-configurable notification-preference system.

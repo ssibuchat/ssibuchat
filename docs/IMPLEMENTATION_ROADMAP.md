@@ -38,7 +38,7 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] MFA API integration tests for login challenge success, single-use challenges, recovery-code consumption, invalid codes and cross-challenge TOTP replay prevention.
 - [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
-- [x] GitHub Actions CI: latest Connect API run [44354724227](https://github.com/ssibuchat/ssibuchat/actions/runs/44354724227) passed npm ci, 25 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+- [x] GitHub Actions CI: latest outbox worker run [44355344563](https://github.com/ssibuchat/ssibuchat/actions/runs/44355344563) passed npm ci, 28 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
 - [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
 - [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.
@@ -59,7 +59,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 
 ### Still required
 - [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
-- [ ] Reliable fan-out worker, retry schedule, dead-letter queue and outbox consumer.
+- [x] Leased outbox dispatcher, idempotent delivery-job fan-out, exponential retry/backoff and dead-letter state.
+- [ ] Activate scheduled worker invocation after Vercel plan, CRON_SECRET and production environment are verified; implement provider delivery consumer and sent/failed callbacks.
 - [ ] Push realtime, typing/presence, cursor sync, reconnect and polling fallback.
 - [x] Group creator/admin roles, member listing, member add/remove, admin promotion and group title changes with server-side authorization.
 - [ ] Group invite links, join approval, member-role policies and history visibility controls.

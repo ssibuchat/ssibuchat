@@ -117,8 +117,8 @@ export async function route(req,res) {
       const thread=await db.collection("threads").findOne({_id:new ObjectId(threadId),tenantId:p.user.tenantId,participantIds:p.user._id});
       if(!thread)return json(res,404,{ok:false,error:"thread_not_found"});
       const msg={tenantId:p.user.tenantId,threadId:thread._id,senderId:p.user._id,text,idempotencyKey:key,status:"accepted",createdAt:now()};
-      try{const r=await db.collection("messages").insertOne(msg);msg._id=r.insertedId;}catch{const old=await db.collection("messages").findOne({tenantId:p.user.tenantId,idempotencyKey:key});if(old)return json(res,200,{ok:true,message:{id:String(old._id),status:old.status},duplicate:true});throw new Error("message_write_failed");}
-      await db.collection("threads").updateOne({_id:thread._id,tenantId:p.user.tenantId},{$set:{lastMessage:text.slice(0,160),updatedAt:msg.createdAt},$inc:{messageCount:1}});
+      try{const r=await db.collection("messages").insertOne(msg);msg._id=r.insertedId;}catch{const old=await db.collection("messages").findOne({tenantId:p.user.tenantId,senderId:p.user._id,idempotencyKey:key});if(old)return json(res,200,{ok:true,message:{id:String(old._id),status:old.status},duplicate:true});throw new Error("message_write_failed");}
+      await db.collection("threads").updateOne({_id:thread._id,tenantId:p.user.tenantId,participantIds:p.user._id},{$set:{lastMessage:text.slice(0,160),updatedAt:msg.createdAt},$inc:{messageCount:1}});
       await db.collection("outboxEvents").insertOne({type:"message.accepted",tenantId:p.user.tenantId,aggregateId:msg._id,createdAt:now(),processedAt:null});
       return json(res,201,{ok:true,message:{id:String(msg._id),status:msg.status,createdAt:msg.createdAt}});
     }

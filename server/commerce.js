@@ -38,7 +38,7 @@ export async function routeCommerce(req,res,db,principal,path){
   if(path==="/api/commerce/orders"&&req.method==="GET"){
     const rows=await db.collection("orders").find({tenantId:principal.tenantId,$or:[{buyerId:principal._id},{merchantId:principal._id}]}).sort({createdAt:-1}).limit(100).toArray();
     const ids=rows.map(row=>row._id),intents=ids.length?await db.collection("paymentIntents").find({tenantId:principal.tenantId,orderId:{$in:ids}}).toArray():[];
-    return json(res,200,{ok:true,orders:rows.map(row=>{const intent=intents.find(item=>String(item.orderId)===String(row._id));return {id:String(row._id),businessId:String(row.businessId),buyerId:String(row.buyerId),merchantId:String(row.merchantId),items:row.items,totalMinor:row.totalMinor,currency:row.currency,status:row.status,paymentStatus:row.paymentStatus,paymentIntentId:intent?String(intent._id):null,createdAt:row.createdAt};})});
+    return json(res,200,{ok:true,orders:rows.map(row=>{const intent=intents.find(item=>String(item.orderId)===String(row._id));return {id:String(row._id),businessId:String(row.businessId),buyerId:String(row.buyerId),merchantId:String(row.merchantId),items:row.items,totalMinor:row.totalMinor,currency:row.currency,status:row.status,paymentStatus:row.paymentStatus,paymentIntentId:intent?String(intent._id):null,sandboxSettlementEnabled:process.env.SSIBUCHAT_PAYMENT_MODE==="sandbox"&&process.env.SSIBUCHAT_ALLOW_SANDBOX_SETTLEMENT==="true",createdAt:row.createdAt};})});
   }
   if(path==="/api/commerce/orders"&&req.method==="POST"){
     const throttle=await consumeRateLimit(db,"commerce-order",String(principal._id),20,60*60*1000);

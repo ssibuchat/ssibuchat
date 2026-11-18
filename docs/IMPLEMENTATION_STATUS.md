@@ -205,3 +205,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Tests cover unbalanced rejection, balanced posting, idempotent replay, conflicting key reuse, trial balance, reversal and duplicate reversal rejection.
 - Latest GitHub Actions run [44360462995](https://github.com/ssibuchat/ssibuchat/actions/runs/44360462995) passed: npm ci; 38 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
 - Payment/wallet provider integration, external settlement/reconciliation, KYC/AML and licensing remain unimplemented pending provider and jurisdiction approvals.
+
+
+## Phase 1 password security increment — 2026-11-18
+
+- Added authenticated password change requiring the current password and a 12–128 character new password; reuse of the current password is rejected.
+- Password updates use a conditional write to prevent a concurrent change from silently overwriting a newer credential.
+- Successful changes revoke every active session, clear the current session cookie, and write an account-security audit event.
+- A security notice is sent to the verified account email when the transactional email provider is configured. Notification delivery failure does not roll back the credential change and is surfaced in the API response.
+- Added account-security UI and integration tests for incorrect current password, short/reused passwords, credential update, session revocation, audit event and security email.
+- GitHub Actions run [44360720899](https://github.com/ssibuchat/ssibuchat/actions/runs/44360720899) passed on the current branch head: `npm ci`, `npm test`, production dependency audit and Vite production build all succeeded.
+- Phase 1 remains open: passkeys, email-change workflow, complete security notifications for all security events, admin audit interface, real staging acceptance for MongoDB/email/MFA, and browser-level identity recovery verification. Do not treat this increment as Phase 1 completion.

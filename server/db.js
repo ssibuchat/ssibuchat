@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { runMigrations } from "./migrations.js";
 let clientPromise;
 let indexesPromise;
 export async function getDb() {
@@ -15,6 +16,7 @@ export async function ensureIndexes(db) {
   if (!indexesPromise) indexesPromise = Promise.all([
     db.collection("users").createIndex({ emailNormalized: 1 }, { unique: true, sparse: true }),
     db.collection("users").createIndex({ usernameNormalized: 1 }, { unique: true, sparse: true }),
+    db.collection("schemaMigrations").createIndex({ id: 1 }, { unique: true }),
     db.collection("sessions").createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection("sessions").createIndex({ userId: 1, expiresAt: 1 }),
     db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
@@ -54,4 +56,5 @@ export async function ensureIndexes(db) {
     db.collection("rateLimits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   ]).catch((error) => { indexesPromise = null; throw error; });
   await indexesPromise;
+  await runMigrations(db);
 }

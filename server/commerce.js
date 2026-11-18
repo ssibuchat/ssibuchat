@@ -9,7 +9,7 @@ const inventoryReservations=async(db,tenantId,items)=>{
   for(const item of items){
     if(!item.trackInventory)continue;
     const result=await db.collection("products").updateOne(
-      {_id:item.productId,tenantId,businessId:item.businessId,trackInventory:true,stockQuantity:{$gte:item.quantity},status:"active"},
+      {_id:item.productId,tenantId,businessId:String(item.businessId),trackInventory:true,stockQuantity:{$gte:item.quantity},status:"active"},
       {$inc:{stockQuantity:-item.quantity},$set:{updatedAt:now()}}
     );
     if(result.modifiedCount!==1){
@@ -46,13 +46,13 @@ export async function routeCommerce(req,res,db,principal,path){
     for(const input of b.items){
       const quantity=Number(input.quantity);
       if(!validId(input.productId)||!Number.isSafeInteger(quantity)||quantity<1||quantity>1000)return json(res,400,{ok:false,error:"invalid_order_item"});
-      const product=await db.collection("products").findOne({_id:new ObjectId(input.productId),tenantId:principal.tenantId,businessId:business._id,status:"active"});
-      if(!product||!Number.isSafeInteger(product.priceMinor)||product.priceMinor<0)return json(res,400,{ok:false,error:"product_unavailable"});
+      const product=await db.collection("products").findOne({_id:new ObjectId(input.productId),tenantId:principal.tenantId,status:"active"});
+      if(!product||String(product.businessId)!==String(business._id)||!Number.isSafeInteger(product.priceMinor)||product.priceMinor<0)return json(res,400,{ok:false,error:"product_unavailable"});
       if(currency&&currency!==product.currency)return json(res,400,{ok:false,error:"mixed_currency_order_not_supported"});
       if(product.trackInventory&&(!Number.isSafeInteger(product.stockQuantity)||product.stockQuantity<quantity))return json(res,409,{ok:false,error:"insufficient_inventory"});
       currency=product.currency;totalMinor+=product.priceMinor*quantity;
       if(!Number.isSafeInteger(totalMinor))return json(res,400,{ok:false,error:"order_total_out_of_range"});
-      items.push({productId:product._id,businessId:business._id,name:product.name,sku:product.sku||null,unitPriceMinor:product.priceMinor,quantity,trackInventory:product.trackInventory===true});
+      items.push({productId:product._id,businessId:String(business._id),name:product.name,sku:product.sku||null,unitPriceMinor:product.priceMinor,quantity,trackInventory:product.trackInventory===true});
     }
     const requestHash=hashToken(JSON.stringify({businessId,items:items.map(item=>({productId:String(item.productId),quantity:item.quantity}))}));
     const row={tenantId:principal.tenantId,ownerId:principal._id,buyerId:principal._id,merchantId:business.ownerId,businessId:business._id,items,currency,totalMinor,note:safeText(b.note,1000),status:"draft",paymentStatus:"not_started",idempotencyKey:key,requestHash,createdAt:now(),updatedAt:now()};

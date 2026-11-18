@@ -25,7 +25,9 @@ export async function ensureIndexes(db) {
     ...["workspaces","projects","tasks","calendarEvents","businesses","products","orders","financeRecords","mediaAssets"].map(name => db.collection(name).createIndex({ tenantId: 1, ownerId: 1, updatedAt: -1 })),
     db.collection("workspacePreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
     db.collection("aiPreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
-    db.collection("aiConversations").createIndex({ tenantId: 1, userId: 1, createdAt: -1 })
+    db.collection("aiConversations").createIndex({ tenantId: 1, userId: 1, createdAt: -1 }),
+    db.collection("rateLimits").createIndex({ key: 1 }, { unique: true }),
+    db.collection("rateLimits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   ]).catch((error) => { indexesPromise = null; throw error; });
   await indexesPromise;
 }

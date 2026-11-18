@@ -29,7 +29,7 @@ function makeDb() {
         (!filter.status || user.status===filter.status) &&
         (!filter.tenantId || user.tenantId===filter.tenantId)
       ) || null,
-      find: async filter => cursor(users.filter(user =>
+      find: filter => cursor(users.filter(user =>
         (!filter._id?.$in || filter._id.$in.some(id=>String(id)===String(user._id))) &&
         (!filter.usernameNormalized?.$in || filter.usernameNormalized.$in.includes(user.usernameNormalized)) &&
         (!filter.tenantId || user.tenantId===filter.tenantId) &&
@@ -55,7 +55,7 @@ function makeDb() {
     messages: {
       insertOne: async message => { message._id=new ObjectId();messages.push(message);return {insertedId:message._id}; },
       findOne: async filter => messages.find(message=>String(message._id)===String(filter._id)&&message.tenantId===filter.tenantId&&String(message.senderId)===String(filter.senderId))||null,
-      find: async filter => cursor(messages.filter(message=>
+      find: filter => cursor(messages.filter(message=>
         (!filter.tenantId||message.tenantId===filter.tenantId)&&
         (!filter.threadId||String(message.threadId)===String(filter.threadId))&&
         (!filter.senderId?.$ne||String(message.senderId)!==String(filter.senderId.$ne))&&
@@ -78,7 +78,7 @@ function makeDb() {
         }
         return {modifiedCount};
       },
-      find: async filter => cursor(receipts.filter(row=>row.tenantId===filter.tenantId&&String(row.messageId)===String(filter.messageId)))
+      find: filter => cursor(receipts.filter(row=>row.tenantId===filter.tenantId&&String(row.messageId)===String(filter.messageId)))
     },
     outboxEvents: { updateOne: async (filter,update) => { outbox.push({filter,update});return {upsertedCount:1}; } },
     rateLimits: { findOneAndUpdate: async filter => {const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};} },

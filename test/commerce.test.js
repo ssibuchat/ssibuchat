@@ -25,7 +25,7 @@ function makeDb(){
     },
     paymentIntents:{
       insertOne:async row=>{row._id=new ObjectId();intents.push(row);return {insertedId:row._id};},
-      findOne:async filter=>intents.find(row=>String(row.orderId)===String(filter.orderId)&&row.tenantId===filter.tenantId&&(!filter.status?.$in||filter.status.$in.includes(row.status))&&(!filter._id||String(row._id)===String(filter._id))&&(!filter.buyerId||String(row.buyerId)===String(filter.buyerId))&&(!filter.status||filter.status===row.status))||null,
+      findOne:async filter=>intents.find(row=>(!filter.orderId||String(row.orderId)===String(filter.orderId))&&row.tenantId===filter.tenantId&&(!filter.status?.$in||filter.status.$in.includes(row.status))&&(!filter._id||String(row._id)===String(filter._id))&&(!filter.buyerId||String(row.buyerId)===String(filter.buyerId))&&(!filter.status||filter.status===row.status))||null,
       updateOne:async(filter,update)=>{const row=intents.find(item=>String(item._id)===String(filter._id)&&(!filter.status||item.status===filter.status));if(!row)return {modifiedCount:0};Object.assign(row,update.$set);return {modifiedCount:1};}
     },
     rateLimits:{findOneAndUpdate:async filter=>{const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};}}

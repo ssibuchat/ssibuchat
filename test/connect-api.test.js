@@ -47,6 +47,7 @@ function makeDb() {
         if(update.$set)Object.assign(thread,update.$set);
         if(update.$inc)for(const [key,value] of Object.entries(update.$inc))thread[key]=(thread[key]||0)+value;
         if(update.$addToSet?.participantIds?.$each)for(const value of update.$addToSet.participantIds.$each)if(!thread.participantIds.some(id=>String(id)===String(value)))thread.participantIds.push(value);
+        if(update.$addToSet?.participantIds&&!update.$addToSet.participantIds.$each){const value=update.$addToSet.participantIds;if(!thread.participantIds.some(id=>String(id)===String(value)))thread.participantIds.push(value);}
         if(update.$addToSet?.adminIds){const value=update.$addToSet.adminIds;if(!thread.adminIds.some(id=>String(id)===String(value)))thread.adminIds.push(value);}
         if(update.$pull?.participantIds)thread.participantIds=thread.participantIds.filter(id=>String(id)!==String(update.$pull.participantIds));
         if(update.$pull?.adminIds)thread.adminIds=thread.adminIds.filter(id=>String(id)!==String(update.$pull.adminIds));

@@ -13,7 +13,7 @@ function makeDb({ message = { _id:"message-1", tenantId:"tenant-1", threadId:"th
         if(!row)return null;
         Object.assign(row,update.$set);row.attempts=(row.attempts||0)+(update.$inc?.attempts||0);return row;
       },
-      updateOne: async (filter,update) => {const row=outbox.find(item=>item._id===filter._id&&item.leaseToken===filter.leaseToken);if(!row)return {modifiedCount:0};Object.assign(row,update.$set);return {modifiedCount:1};}
+      updateOne: async (filter,update) => {const row=outbox.find(item=>item._id===filter._id&&item.leaseToken===filter.leaseToken);if(!row)return {modifiedCount:0};Object.assign(row,update.$set);for(const key of Object.keys(update.$unset||{}))delete row[key];return {modifiedCount:1};}
     };
     if(name==="messages")return {findOne:async()=>message};
     if(name==="threads")return {findOne:async()=>thread};

@@ -72,4 +72,11 @@ test("buyer/merchant order separation, inventory reservation and sandbox payment
   assert.equal(merchantUpdate.status,200);assert.equal(db.orders[0].status,"processing");
   const buyerInventory=await invoke(db,buyer,"PATCH","/api/commerce/products/"+db.productId+"/inventory",{stockQuantity:99,trackInventory:true});
   assert.equal(buyerInventory.status,404);
+  const insufficient=await invoke(db,buyer,"POST","/api/commerce/orders",{businessId:String(db.businessId),idempotencyKey:"commerce-order-insufficient-0001",items:[{productId:String(db.productId),quantity:4}]});
+  assert.equal(insufficient.status,409);
+  const second=await invoke(db,buyer,"POST","/api/commerce/orders",{businessId:String(db.businessId),idempotencyKey:"commerce-order-cancel-00001",items:[{productId:String(db.productId),quantity:2}]});
+  const pending=await invoke(db,buyer,"POST","/api/commerce/orders/"+second.body.order.id+"/checkout",{idempotencyKey:"checkout-cancel-pending-0001"});
+  assert.equal(pending.status,201);assert.equal(db.product.stockQuantity,1);
+  const cancelled=await invoke(db,merchant,"PATCH","/api/commerce/orders/"+second.body.order.id+"/status",{status:"cancelled"});
+  assert.equal(cancelled.status,200);assert.equal(db.product.stockQuantity,3);
 });

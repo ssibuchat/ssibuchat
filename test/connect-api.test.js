@@ -41,7 +41,8 @@ function makeDb() {
       findOne: async filter => sessions.find(session=>session.tokenHash===filter.tokenHash&&session.expiresAt>filter.expiresAt.$gt)||null
     },
     threads: {
-      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&(!filter.participantIds||thread.participantIds.some(id=>String(id)===String(filter.participantIds)))?thread:null,\n      find: filter => cursor([thread].filter(row=>row.tenantId===filter.tenantId&&row.participantIds.some(id=>String(id)===String(filter.participantIds)))),
+      findOne: async filter => String(filter._id)===String(thread._id)&&filter.tenantId===thread.tenantId&&(!filter.participantIds||thread.participantIds.some(id=>String(id)===String(filter.participantIds)))?thread:null,
+      find: filter => cursor([thread].filter(row=>row.tenantId===filter.tenantId&&row.participantIds.some(id=>String(id)===String(filter.participantIds)))),
       updateOne: async (filter,update) => {
         if(String(filter._id)!==String(thread._id))return {modifiedCount:0};
         if(update.$set)Object.assign(thread,update.$set);
@@ -57,12 +58,14 @@ function makeDb() {
     messages: {
       insertOne: async message => { message._id=new ObjectId();messages.push(message);return {insertedId:message._id}; },
       updateOne: async (filter,update) => {const message=messages.find(row=>String(row._id)===String(filter._id)&&row.tenantId===filter.tenantId&&(!filter.senderId||String(row.senderId)===String(filter.senderId))&&(!filter.deletedAt?.$exists||!row.deletedAt));if(!message)return {matchedCount:0};Object.assign(message,update.$set);return {matchedCount:1};},
-      findOne: async filter => messages.find(message=>String(message._id)===String(filter._id)&&message.tenantId===filter.tenantId&&String(message.senderId)===String(filter.senderId))||null,
+      findOne: async filter => messages.find(message=>String(message._id)===String(filter._id)&&message.tenantId===filter.tenantId&&(!filter.senderId||String(message.senderId)===String(filter.senderId)))||null,
       find: filter => cursor(messages.filter(message=>
         (!filter.tenantId||message.tenantId===filter.tenantId)&&
         (!filter.threadId||String(message.threadId)===String(filter.threadId))&&
         (!filter.senderId?.$ne||String(message.senderId)!==String(filter.senderId.$ne))&&
-        (!filter._id?.$lte||String(message._id)<=String(filter._id.$lte))
+        (!filter._id?.$lte||String(message._id)<=String(filter._id.$lte))&&
+        (!filter.text?.$regex||new RegExp(filter.text.$regex,filter.text.$options||"").test(message.text||""))&&
+        (!filter.deletedAt?.$exists||!message.deletedAt)
       ))
     },
     blocks: {

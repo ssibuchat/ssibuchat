@@ -147,3 +147,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Latest GitHub Actions run [44355344563](https://github.com/ssibuchat/ssibuchat/actions/runs/44355344563) passed: npm ci; 28 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - Scheduler activation is intentionally not configured yet: Vercel Hobby supports daily cron cadence while Pro/Enterprise support per-minute execution; the actual project plan and CRON_SECRET must be verified before choosing a schedule. The endpoint and worker code are implemented, but automated scheduled delivery is not yet live.
 - Delivery jobs are queued only. No SMS/push/email provider dispatch or sent/failed delivery state is claimed.
+
+
+## Phase 2 Connect group-invite increment — 2026-11-18
+
+- Added secure 256-bit group invite tokens; only HMAC token hashes are persisted.
+- Invites have bounded expiry (1–168 hours), bounded uses (1–100), optional admin approval, and admin revocation/listing.
+- Added join-request submission, pending request listing and admin approve/deny controls. Approved joins atomically consume a use and add the user to the group.
+- Added TTL, unique pending-request and listing indexes.
+- Added integration coverage for invite creation, approval-required join, pending request visibility and admin approval/member addition.
+- GitHub Actions run [44356028441](https://github.com/ssibuchat/ssibuchat/actions/runs/44356028441) passed: npm ci; 29 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
+- Group fine-grained member-role policy and history visibility remain pending. Vercel preview build currently reports an account build-rate-limit failure; no new preview or production deployment was created.

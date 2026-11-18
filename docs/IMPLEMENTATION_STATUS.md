@@ -169,3 +169,15 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added API tests for block enforcement, report submission/admin review, edit/delete, reaction add/remove and participant-scoped search.
 - Latest CI run [44357042708](https://github.com/ssibuchat/ssibuchat/actions/runs/44357042708) passed: npm ci; 31 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - Group-wide block behavior, moderation actions/appeals, binary attachments and malware scanning remain open.
+
+
+## Phase 1 schema/tenant foundation and Phase 3 Work increment — 2026-11-18
+
+- Added a leased, idempotent schema migration registry and tenant membership backfill. Existing users receive a tenantId/schemaVersion and membership record; existing workspace owners receive workspace owner memberships. New standard/admin/tester accounts create memberships at registration.
+- Added shared workspace invitations bound to an existing intended user, with hashed single-use token, seven-day expiry and editor/viewer roles.
+- Added workspace member listing, owner-controlled role changes/removal, shared documents, optimistic version checks, append-only revision snapshots and workspace activity feed.
+- Viewers can read shared documents/history/activity; editors can create/update documents; owners manage membership and invitations.
+- Added indexes for schema migrations, workspace memberships/invites/documents/revisions/activity.
+- Added tests for migration idempotency/backfill, invitation acceptance, role enforcement, stale-version conflict, revision history and activity events.
+- Latest GitHub Actions run [44358121172](https://github.com/ssibuchat/ssibuchat/actions/runs/44358121172) passed: npm ci; 34 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Remaining Work acceptance: real-time co-editing/CRDT, comments, granular document permissions, and shared project/task/calendar CRUD. Current projects/tasks/calendar modules remain owner-scoped.

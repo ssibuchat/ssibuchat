@@ -135,6 +135,8 @@ export async function route(req,res) {
       let valid = false;
       try { valid = verifyTotp(decryptMfaSecret(p.user.mfaSecretEncrypted),b.code); } catch { valid = false; }
       if (!valid) return json(res,401,{ok:false,error:"invalid_mfa_code"});
+      const credentialUser = await db.collection("users").findOne({_id:p.user._id},{projection:{passwordHash:1}});
+      if (!credentialUser || !(await verifyPassword(b.password||"",credentialUser.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
       await db.collection("users").updateOne({_id:p.user._id},{$unset:{mfaEnabled:"",mfaSecretEncrypted:"",recoveryCodeHashes:"",mfaEnabledAt:"",mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
       await db.collection("sessions").deleteMany({userId:p.user._id});
       clearSessionCookie(res);

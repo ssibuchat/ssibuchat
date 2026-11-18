@@ -18,7 +18,7 @@ async function bootstrap(req, res, db, body) {
   if (await db.collection("users").countDocuments({ role:"admin" })) return json(res, 409, { ok:false, error:"admin_already_bootstrapped" });
   const email=emailNorm(body.email), password=String(body.password||""), username=usernameNorm(body.username || email.split("@")[0]);
   if (!email.includes("@") || password.length<12) return json(res,400,{ok:false,error:"valid_email_and_12_character_password_required"});
-  const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(body.displayName||"SsibuChat Admin",80),passwordHash:await hashPassword(password),role:"admin",accountType:"standard",status:"active",tenantId:"platform",createdAt:now(),updatedAt:now()};
+  const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(body.displayName||"SsibuChat Admin",80),passwordHash:await hashPassword(password),role:"admin",accountType:"standard",status:"active",tenantId:"global",createdAt:now(),updatedAt:now()};
   const result=await db.collection("users").insertOne(user); user._id=result.insertedId;
   const token=await createSession(db,user); setSessionCookie(res,token); await audit(db,user,"admin.bootstrap");
   return json(res,201,{ok:true,user:{id:String(user._id),email:user.email,role:user.role}});
@@ -37,7 +37,7 @@ export async function route(req,res) {
     if(path==="/api/auth/register" && req.method==="POST"){
       const b=await readBody(req), email=emailNorm(b.email), username=usernameNorm(b.username), password=String(b.password||"");
       if(!email.includes("@")||!username||!/^[a-z0-9_.-]{3,32}$/.test(username)||password.length<12) return json(res,400,{ok:false,error:"valid_email_username_and_12_character_password_required"});
-      const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"standard",status:"active",tenantId:"personal:"+new ObjectId().toString(),createdAt:now(),updatedAt:now()};
+      const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"standard",status:"active",tenantId:"global",createdAt:now(),updatedAt:now()};
       try{const r=await db.collection("users").insertOne(user);user._id=r.insertedId;}catch{return json(res,409,{ok:false,error:"email_or_username_unavailable"});}
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"account.register");
       return json(res,201,{ok:true,user:{id:String(user._id),username,displayName:user.displayName}});
@@ -68,6 +68,42 @@ export async function route(req,res) {
         if(!b.enabled)await db.collection("sessions").deleteMany({tenantId:"testers"});
         await audit(db,p.user,b.enabled?"tester-access.enable":"tester-access.disable");return json(res,200,{ok:true,policy:await policy(db)});
       }
+    }
+    if(path==="/api/people"&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
+      const q=usernameNorm(u.searchParams.get("q")||"");
+      if(q.length<2)return json(res,200,{ok:true,people:[]});
+      const rows=await db.collection("users").find({tenantId:p.user.tenantId,status:"active",discoverable:{$ne:false},_id:{$ne:p.user._id},$or:[{usernameNormalized:{$regex:"^"+q.replace(/[.*+?^${}()|[\]\\]/g,"\\    if(path==="/api/threads"&&req.method==="GET"){")}},{displayName:{$regex:q.replace(/[.*+?^${}()|[\]\\]/g,"\\    if(path==="/api/threads"&&req.method==="GET"){"),$options:"i"}}]},{projection:{passwordHash:0,email:0,emailNormalized:0}}).limit(12).toArray();
+      return json(res,200,{ok:true,people:rows.map(u=>({id:String(u._id),username:u.username,displayName:u.displayName}))});
+    }
+    if(path==="/api/threads"&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const b=await readBody(req),names=Array.isArray(b.participants)?b.participants.map(usernameNorm).filter(Boolean):[];
+      const normalized=[...new Set(names)].filter(n=>n!==p.user.usernameNormalized);
+      if(!normalized.length||normalized.length>19)return json(res,400,{ok:false,error:"one_to_nineteen_other_participants_required"});
+      const users=await db.collection("users").find({tenantId:p.user.tenantId,status:"active",usernameNormalized:{$in:normalized}}).toArray();
+      if(users.length!==normalized.length)return json(res,404,{ok:false,error:"one_or_more_people_not_found"});
+      const participantIds=[p.user._id,...users.map(u=>u._id)];
+      const type=participantIds.length===2?"direct":"group";
+      if(type==="direct"){
+        const existing=await db.collection("threads").findOne({tenantId:p.user.tenantId,type:"direct",participantIds:{$all:participantIds,$size:2}});
+        if(existing)return json(res,200,{ok:true,thread:{id:String(existing._id),title:existing.title,type:existing.type},existing:true});
+      }
+      const title=safeText(b.title||users.map(u=>u.displayName||u.username).join(", "),120);
+      const thread={tenantId:p.user.tenantId,type,title,participantIds,createdBy:p.user._id,createdAt:now(),updatedAt:now(),messageCount:0};
+      const result=await db.collection("threads").insertOne(thread);
+      await audit(db,p.user,"thread.create",String(result.insertedId));
+      return json(res,201,{ok:true,thread:{id:String(result.insertedId),title,type}});
+    }
+    const threadMessagesMatch=path.match(/^\\/api\\/threads\\/([a-f0-9]{24})\\/messages$/i);
+    if(threadMessagesMatch&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const thread=await db.collection("threads").findOne({_id:new ObjectId(threadMessagesMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!thread)return json(res,404,{ok:false,error:"thread_not_found"});
+      const rows=await db.collection("messages").find({tenantId:p.user.tenantId,threadId:thread._id}).sort({createdAt:-1}).limit(50).toArray();
+      rows.reverse();
+      return json(res,200,{ok:true,messages:rows.map(m=>({id:String(m._id),senderId:String(m.senderId),text:m.text,status:m.status,createdAt:m.createdAt}))});
     }
     if(path==="/api/threads"&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});

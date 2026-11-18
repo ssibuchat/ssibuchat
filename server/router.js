@@ -6,6 +6,7 @@ import { hashToken } from "./security.js";
 import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp, matchTotpStep, createRecoveryCodes } from "./mfa.js";
 import { routeModules } from "./modules.js";
 import { routeWorkspaces } from "./workspaces.js";
+import { sendTransactionalEmail } from "./email.js";
 import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
@@ -109,6 +110,60 @@ export async function route(req,res,database = null) {
     if (path.startsWith("/api/workspaces/") || path.startsWith("/api/workspace-invites/")) {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
       return await routeWorkspaces(req,res,db,p,path);
+    }
+    if(path==="/api/account/email/verification/request"&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      if(p.user.emailVerified===true)return json(res,200,{ok:true,verified:true});
+      if(!p.user.email)return json(res,400,{ok:false,error:"account_email_missing"});
+      const throttle=await consumeRateLimit(db,"email-verification",String(p.user._id),3,60*60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
+      const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+24*60*60*1000);
+      const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_verification",tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
+      const appUrl=process.env.SSIBUCHAT_APP_URL;
+      try{
+        const sent=await sendTransactionalEmail({to:p.user.email,subject:"Verify your SsibuChat email",text:"Verify your email using this link: "+appUrl+"/?verifyEmail="+encodeURIComponent(token)+"\nThis link expires in 24 hours. If you did not request this, ignore this message."});
+        if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
+      }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,502,{ok:false,error:"email_delivery_failed"});}
+      return json(res,202,{ok:true,verificationSent:true});
+    }
+    if(path==="/api/auth/email/verification/confirm"&&req.method==="POST"){
+      const b=await readBody(req),token=String(b.token||"");
+      if(token.length<32||token.length>128)return json(res,400,{ok:false,error:"invalid_verification_token"});
+      const record=await db.collection("authTokens").findOne({tokenHash:hashToken(token),purpose:"email_verification",usedAt:null,expiresAt:{$gt:now()}});
+      if(!record)return json(res,400,{ok:false,error:"invalid_or_expired_verification_token"});
+      const claimed=await db.collection("authTokens").updateOne({_id:record._id,usedAt:null,expiresAt:{$gt:now()}},{$set:{usedAt:now()}});
+      if(claimed.modifiedCount!==1)return json(res,409,{ok:false,error:"verification_token_already_used"});
+      await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId},{$set:{emailVerified:true,emailVerifiedAt:now()}});
+      await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.email.verify");
+      return json(res,200,{ok:true,verified:true});
+    }
+    if(path==="/api/auth/password-reset/request"&&req.method==="POST"){
+      const b=await readBody(req),email=String(b.email||"").trim().toLowerCase();
+      const throttle=await consumeRateLimit(db,"password-reset-request",email||String(req.socket?.remoteAddress||"unknown"),3,60*60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,202,{ok:true,message:"If an eligible account exists, a reset message will be sent."});}
+      const user=email?await db.collection("users").findOne({emailNormalized:email,status:"active",emailVerified:true}):null;
+      if(user){
+        const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+30*60*1000);
+        const created=await db.collection("authTokens").insertOne({tenantId:user.tenantId,userId:user._id,purpose:"password_reset",tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
+        try{
+          const sent=await sendTransactionalEmail({to:user.email,subject:"Reset your SsibuChat password",text:"Reset your password using this link: "+process.env.SSIBUCHAT_APP_URL+"/?resetPassword="+encodeURIComponent(token)+"\nThis link expires in 30 minutes. If you did not request this, ignore this message."});
+          if(!sent.configured)await db.collection("authTokens").deleteOne({_id:created.insertedId});
+        }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});}
+      }
+      return json(res,202,{ok:true,message:"If an eligible account exists, a reset message will be sent."});
+    }
+    if(path==="/api/auth/password-reset/confirm"&&req.method==="POST"){
+      const b=await readBody(req),token=String(b.token||""),password=String(b.password||"");
+      if(token.length<32||token.length>128||password.length<12||password.length>128)return json(res,400,{ok:false,error:"valid_token_and_12_to_128_character_password_required"});
+      const record=await db.collection("authTokens").findOne({tokenHash:hashToken(token),purpose:"password_reset",usedAt:null,expiresAt:{$gt:now()}});
+      if(!record)return json(res,400,{ok:false,error:"invalid_or_expired_reset_token"});
+      const claimed=await db.collection("authTokens").updateOne({_id:record._id,usedAt:null,expiresAt:{$gt:now()}},{$set:{usedAt:now()}});
+      if(claimed.modifiedCount!==1)return json(res,409,{ok:false,error:"reset_token_already_used"});
+      const passwordHash=await hashPassword(password);
+      await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId,status:"active"},{$set:{passwordHash,passwordChangedAt:now()}});
+      await db.collection("sessions").deleteMany({userId:record.userId});
+      await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.password.reset");
+      return json(res,200,{ok:true,passwordReset:true,signedOutEverywhere:true});
     }
     if (path === "/api/account/mfa" && req.method === "GET") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});

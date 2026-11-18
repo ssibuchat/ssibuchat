@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { json, readBody, safeText } from "./security.js";
+import { consumeRateLimit } from "./rate-limit.js";
 
 const definitions = {
   workspaces: { collection: "workspaces", fields: { name: 100, description: 1000, color: 24 } },
@@ -50,6 +51,15 @@ async function ownedReference(db, collection, id, principal) {
   if (!validId(id)) return null;
   return db.collection(collection).findOne({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id });
 }
+async function allowWrite(db, res, principal, scope, limit, windowMs) {
+  const result = await consumeRateLimit(db, scope, String(principal._id), limit, windowMs);
+  if (!result.allowed) {
+    res.setHeader("Retry-After", String(result.retryAfterSeconds));
+    json(res, 429, { ok: false, error: "rate_limit_exceeded" });
+    return false;
+  }
+  return true;
+}
 export async function routeModules(req, res, db, principal, path) {
   if (path === "/api/workspace/preferences") {
     if (req.method === "GET") {
@@ -57,6 +67,7 @@ export async function routeModules(req, res, db, principal, path) {
       return json(res, 200, { ok: true, preferences: row?.preferences || { layout: "comfortable", modules: ["connect", "work", "commerce", "finance", "media", "ai"], contextualPanels: true } });
     }
     if (req.method === "PUT") {
+      if (!(await allowWrite(db, res, principal, "workspace-preferences", 30, 60 * 60 * 1000))) return;
       const body = await readBody(req), p = body.preferences || {};
       const modules = Array.isArray(p.modules) ? [...new Set(p.modules.filter(x => ["connect", "work", "commerce", "finance", "media", "ai"].includes(x)))].slice(0, 6) : ["connect", "work", "commerce", "finance", "media", "ai"];
       const preferences = { layout: ["comfortable", "compact"].includes(p.layout) ? p.layout : "comfortable", modules, contextualPanels: p.contextualPanels !== false };
@@ -72,6 +83,7 @@ export async function routeModules(req, res, db, principal, path) {
       return json(res, 200, { ok: true, enabled: row?.enabled === true, updatedAt: row?.updatedAt || null });
     }
     if (req.method === "PUT") {
+      if (!(await allowWrite(db, res, principal, "ai-consent", 5, 60 * 60 * 1000))) return;
       const body = await readBody(req);
       if (typeof body.enabled !== "boolean") return json(res, 400, { ok: false, error: "enabled_boolean_required" });
       await db.collection("aiPreferences").updateOne({ tenantId: principal.tenantId, userId: principal._id }, { $set: { enabled: body.enabled, updatedAt: new Date() } }, { upsert: true });
@@ -83,6 +95,7 @@ export async function routeModules(req, res, db, principal, path) {
 
   if (path === "/api/ai/chat") {
     if (req.method !== "POST") return json(res, 405, { ok: false, error: "method_not_allowed" });
+    if (!(await allowWrite(db, res, principal, "ai-chat", 20, 60 * 1000))) return;
     const consent = await db.collection("aiPreferences").findOne({ tenantId: principal.tenantId, userId: principal._id, enabled: true });
     if (!consent) return json(res, 403, { ok: false, error: "explicit_ai_consent_required" });
     const base = process.env.SSIBUCHAT_AI_BASE_URL, apiKey = process.env.SSIBUCHAT_AI_API_KEY, model = process.env.SSIBUCHAT_AI_MODEL;
@@ -112,6 +125,7 @@ export async function routeModules(req, res, db, principal, path) {
     return json(res, 200, { ok: true, items: rows.map(serialize) });
   }
   if (req.method === "POST" && !id) {
+    if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     const body = await readBody(req), fields = projectInput(key, body);
     if (key === "projects" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
     if (key === "tasks") {
@@ -143,6 +157,7 @@ export async function routeModules(req, res, db, principal, path) {
     return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
   }
   if (req.method === "PATCH" && id) {
+    if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     if (key === "orders" || key === "finance") return json(res, 403, { ok: false, error: "financial_records_are_immutable" });
     const fields = projectInput(key, await readBody(req));
     if (key === "projects" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
@@ -156,6 +171,7 @@ export async function routeModules(req, res, db, principal, path) {
     return json(res, 200, { ok: true, item: serialize(result) });
   }
   if (req.method === "DELETE" && id) {
+    if (!(await allowWrite(db, res, principal, "module-write:" + key, 60, 60 * 1000))) return;
     if (key === "orders" || key === "finance") return json(res, 403, { ok: false, error: "financial_records_are_immutable" });
     const result = await collection.deleteOne({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id });
     return json(res, result.deletedCount ? 200 : 404, { ok: result.deletedCount === 1, error: result.deletedCount ? undefined : "item_not_found" });

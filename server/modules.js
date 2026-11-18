@@ -8,7 +8,7 @@ const definitions = {
   tasks: { collection: "tasks", fields: { workspaceId: 24, projectId: 24, title: 180, description: 2000, status: 24, priority: 16, dueDate: 40, assignee: 80 } },
   events: { collection: "calendarEvents", fields: { workspaceId: 24, title: 180, description: 2000, startsAt: 40, endsAt: 40, timezone: 64, location: 180 } },
   businesses: { collection: "businesses", fields: { name: 140, description: 2000, category: 60, website: 300, phone: 40, address: 300 } },
-  products: { collection: "products", fields: { businessId: 24, name: 140, description: 2000, currency: 3, priceMinor: 12, sku: 80, status: 24 } },
+  products: { collection: "products", fields: { businessId: 24, name: 140, description: 2000, currency: 3, priceMinor: 12, sku: 80, status: 24, stockQuantity: 12, trackInventory: 5 } },
   orders: { collection: "orders", fields: { businessId: 24, currency: 3, note: 1000 } },
   finance: { collection: "financeRecords", fields: { type: 24, currency: 3, amountMinor: 14, reference: 120, description: 500, status: 24 } },
   media: { collection: "mediaAssets", fields: { name: 180, mimeType: 100, sizeBytes: 14, storageKey: 300, checksum: 128, visibility: 16 } }
@@ -30,7 +30,13 @@ export function projectInput(key, input) {
   for (const [field, max] of Object.entries(definition.fields)) {
     if (input[field] === undefined) continue;
     const value = input[field];
-    if (["priceMinor", "sizeBytes", "amountMinor"].includes(field)) {
+    if (field === "stockQuantity") {
+      if (!Number.isSafeInteger(value) || value < 0 || value > 1000000000) throw new Error("invalid_stockQuantity");
+      result[field] = value;
+    } else if (field === "trackInventory") {
+      if (typeof value !== "boolean") throw new Error("invalid_trackInventory");
+      result[field] = value;
+    } else if (["priceMinor", "sizeBytes", "amountMinor"].includes(field)) {
       if (!Number.isSafeInteger(value) || value < 0) throw new Error("invalid_" + field);
       result[field] = value;
     } else if (field === "currency") {
@@ -44,6 +50,7 @@ export function projectInput(key, input) {
     if (result[field] !== undefined && !allowed.includes(result[field])) throw new Error("invalid_" + field);
   }
   if (key === "products" && result.priceMinor === undefined) throw new Error("priceMinor_required");
+  if (key === "products") { result.trackInventory = result.trackInventory === true; result.stockQuantity = result.stockQuantity ?? 0; }
   if (key === "finance" && (result.amountMinor === undefined || !result.currency || !result.type)) throw new Error("finance_amount_currency_and_type_required");
   return result;
 }
@@ -151,6 +158,8 @@ export async function routeModules(req, res, db, principal, path) {
       const memberships = await db.collection("workspaceMembers").find({ tenantId: principal.tenantId, userId: principal._id, status: "active" }).toArray();
       const ids = memberships.map(row => row.workspaceId);
       rows = await collection.find({ tenantId: principal.tenantId, $or: [{ ownerId: principal._id }, { _id: { $in: ids } }] }).sort({ updatedAt: -1 }).limit(100).toArray();
+    } else if (key === "orders") {
+      rows = await collection.find({ tenantId:principal.tenantId, $or:[{buyerId:principal._id},{merchantId:principal._id}] }).sort({createdAt:-1}).limit(100).toArray();
     } else if (["projects","tasks","events"].includes(key)) {
       const workspaceIds = await sharedWorkspaceIds(db,principal);
       rows = await collection.find({ tenantId:principal.tenantId, $or:[{ownerId:principal._id},{workspaceId:{$in:workspaceIds}}] }).sort({ updatedAt:-1 }).limit(100).toArray();
@@ -179,24 +188,7 @@ export async function routeModules(req, res, db, principal, path) {
       if (!(await canEditWorkspace(db,fields.workspaceId,principal))) return json(res,403,{ok:false,error:"workspace_editor_required"});
     }
     if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
-    if (key === "orders") {
-      const business = await ownedReference(db, "businesses", body.businessId, principal);
-      if (!business || !Array.isArray(body.items) || !body.items.length || body.items.length > 50) return json(res, 400, { ok: false, error: "valid_business_and_order_items_required" });
-      const items = [];
-      let totalMinor = 0, currency = "";
-      for (const item of body.items) {
-        const product = await ownedReference(db, "products", item.productId, principal);
-        const quantity = Number(item.quantity);
-        if (!product || product.businessId !== String(business._id) || product.status !== "active" || !Number.isInteger(quantity) || quantity < 1 || quantity > 1000) return json(res, 400, { ok: false, error: "invalid_order_item" });
-        if (currency && currency !== product.currency) return json(res, 400, { ok: false, error: "mixed_currency_order_not_supported" });
-        currency = product.currency; totalMinor += product.priceMinor * quantity;
-        if (!Number.isSafeInteger(totalMinor)) return json(res, 400, { ok: false, error: "order_total_out_of_range" });
-        items.push({ productId: product._id, name: product.name, unitPriceMinor: product.priceMinor, quantity });
-      }
-      const row = { tenantId: principal.tenantId, ownerId: principal._id, businessId: business._id, items, currency, totalMinor, note: safeText(body.note, 1000), status: "draft", paymentStatus: "not_started", createdAt: new Date(), updatedAt: new Date() };
-      const result = await collection.insertOne(row);
-      return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
-    }
+    if (key === "orders") return json(res,405,{ok:false,error:"use_commerce_checkout_api"});
     if (key === "finance") fields.status = fields.status || "recorded";
     const row = { ...fields, tenantId: principal.tenantId, ownerId: principal._id, createdAt: new Date(), updatedAt: new Date() };
     const result = await collection.insertOne(row);

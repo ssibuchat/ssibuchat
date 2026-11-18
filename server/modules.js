@@ -194,8 +194,7 @@ export async function routeModules(req, res, db, principal, path) {
       }
       const row = { tenantId: principal.tenantId, ownerId: principal._id, businessId: business._id, items, currency, totalMinor, note: safeText(body.note, 1000), status: "draft", paymentStatus: "not_started", createdAt: new Date(), updatedAt: new Date() };
       const result = await collection.insertOne(row);
-      if (["projects","tasks","events"].includes(key) && row.workspaceId) await recordWorkActivity(db,principal,row.workspaceId,"work."+key.slice(0,-1)+".create",result.insertedId,"A work item was created");
-    return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
+      return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
     }
     if (key === "finance") fields.status = fields.status || "recorded";
     const row = { ...fields, tenantId: principal.tenantId, ownerId: principal._id, createdAt: new Date(), updatedAt: new Date() };
@@ -204,6 +203,7 @@ export async function routeModules(req, res, db, principal, path) {
       await db.collection("workspaceMembers").updateOne({ tenantId: principal.tenantId, workspaceId: result.insertedId, userId: principal._id }, { $setOnInsert: { tenantId: principal.tenantId, workspaceId: result.insertedId, userId: principal._id, role: "owner", status: "active", createdAt: new Date() } }, { upsert: true });
       await db.collection("workspaceActivity").insertOne({ tenantId: principal.tenantId, workspaceId: result.insertedId, actorId: principal._id, type: "workspace.create", aggregateId: result.insertedId, summary: "A workspace was created", createdAt: new Date() });
     }
+    if (["projects","tasks","events"].includes(key) && row.workspaceId) await recordWorkActivity(db,principal,row.workspaceId,"work."+key.slice(0,-1)+".create",result.insertedId,"A work item was created");
     return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
   }
   if (req.method === "PATCH" && id) {

@@ -1,17 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp } from "../server/mfa.js";
+import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, totpAt, verifyTotp } from "../server/mfa.js";
 
 test("TOTP verification accepts current code and rejects malformed or incorrect values", () => {
   const secret = generateTotpSecret();
   const now = 1_800_000_000_000;
-  const counter = Math.floor(now / 1000 / 30);
-  const message = Buffer.alloc(8); message.writeBigUInt64BE(BigInt(counter));
-  const digest = createHmac("sha1", Buffer.from(secret, "base32")).update(message).digest();
-  const offset = digest[digest.length - 1] & 15;
-  const binary = ((digest[offset] & 127) << 24) | ((digest[offset + 1] & 255) << 16) | ((digest[offset + 2] & 255) << 8) | (digest[offset + 3] & 255);
-  const code = String(binary % 1_000_000).padStart(6, "0");
+  const code = totpAt(secret, now);
   assert.equal(verifyTotp(secret, code, now), true);
   assert.equal(verifyTotp(secret, "12x456", now), false);
   assert.equal(verifyTotp(secret, "000000", now), false);

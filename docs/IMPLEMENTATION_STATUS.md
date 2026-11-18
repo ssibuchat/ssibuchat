@@ -83,3 +83,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added comma-separated participant entry for creating group conversations in the Connect UI.
 - Added production CSP, HSTS, frame, referrer, permissions and cross-origin opener headers in Vercel configuration.
 - These latest rate-limit and header/UI changes require the current PR head's CI and preview checks before approval.
+
+
+## Current CI confirmation
+- Current reviewed branch head: `31e165c042ad895b5299e83b76180bd885565b8b`.
+- GitHub Actions `verify`: 14 tests passed, 0 failed; Vite production build passed; production dependency audit passed with zero production vulnerabilities.
+- The full audit still reports four high-severity development-toolchain advisories through picomatch <=4.0.7. The advisory has no confirmed patched version in the current upstream record; production dependency audit is clean, but the development-toolchain finding remains tracked.
+- Vercel Preview Comments check passed with zero unresolved feedback. Preview URL exists; authenticated end-to-end verification against a configured MongoDB and provider environment remains outstanding.

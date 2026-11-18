@@ -15,6 +15,12 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: Export generated npm lockfile for deterministic dependency pinning
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssibuchat-package-lock
+          path: package-lock.json
+          if-no-files-found: error
       - run: npm test
       - name: Audit production dependencies
         run: npm audit --omit=dev

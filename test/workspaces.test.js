@@ -43,7 +43,7 @@ function makeDb() {
     },
     rateLimits:{findOneAndUpdate:async filter=>{const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};}}
   };
-  function cursor(rows){return {sort(){return this;},limit(){return this;},toArray:async()=>rows};}
+  function cursor(rows){return {sort(spec){const [field,direction]=Object.entries(spec)[0]||[];if(field)rows.sort((a,b)=>(a[field]>b[field]?1:a[field]<b[field]?-1:0)*direction);return this;},limit(){return this;},toArray:async()=>rows};}
   return {owner,editor,viewer,workspace,members,invites,documents,revisions,events,collection:name=>collections[name]};
 }
 async function invoke(db,principal,method,path,body={}) {

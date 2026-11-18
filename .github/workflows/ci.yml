@@ -16,6 +16,8 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm test
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
       - name: Dependency audit summary
         run: npm audit --json > npm-audit.json || true
       - name: Report dependency advisories

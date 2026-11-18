@@ -50,8 +50,13 @@ export function safeText(value, max = 500) { return String(value ?? "").replace(
 export function isSameOrigin(req) {
   const host = String(req.headers?.host || "").trim().toLowerCase();
   const source = req.headers?.origin || req.headers?.referer;
-  if (!host || !source || source === "null") return false;
-  try { return new URL(source).host.toLowerCase() === host; } catch { return false; }
+  const forwardedProto = String(req.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const protocol = forwardedProto || (req.socket?.encrypted ? "https" : "http");
+  if (!host || !source || source === "null" || !["http", "https"].includes(protocol)) return false;
+  try {
+    const parsed = new URL(source);
+    return parsed.host.toLowerCase() === host && parsed.protocol === protocol + ":";
+  } catch { return false; }
 }
 export function json(res, status, body) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(body)); }
 export async function readBody(req, maxBytes = 256000) {

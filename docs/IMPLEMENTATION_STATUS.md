@@ -225,3 +225,11 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Only the token hash is persisted; confirmation marks the new address verified, records an audit event and sends a security notice to the previous address when email delivery is configured.
 - Added account security UI for requesting and completing the email change, plus integration coverage for current-password enforcement, confirmation, replay rejection and prior-address notification.
 - CI evidence for this increment is pending; the previous successful CI run does not cover these latest commits.
+
+
+## Latest Phase 1 / Commerce CI triage — 2026-11-18
+
+- The first CI run covering email-change implementation, [44361231314](https://github.com/ssibuchat/ssibuchat/actions/runs/44361231314), failed at `npm test`: 40 passed and 2 failed.
+- Failure 1 was in the email-change test's confirmation-link token extraction (the test regex captured beyond the token); corrected to stop at whitespace.
+- Failure 2 was a stale Commerce product projection assertion after inventory defaults (`trackInventory: false`, `stockQuantity: 0`) were added; updated the assertion to match the intended server-side defaults.
+- Both corrections are committed. A new CI result for the corrected head has not yet been observed; email-change acceptance remains unverified until the full workflow passes.

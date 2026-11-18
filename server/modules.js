@@ -60,6 +60,7 @@ async function ownedReference(db, collection, id, principal) {
   const row = await db.collection(collection).findOne({ _id:new ObjectId(id), tenantId:principal.tenantId });
   if (!row) return null;
   if (String(row.ownerId) === String(principal._id)) return row;
+  if (collection === "workspaces" && await workspaceRole(db,id,principal)) return row;
   if (row.workspaceId && await workspaceRole(db,row.workspaceId,principal)) return row;
   return null;
 }

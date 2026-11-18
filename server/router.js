@@ -95,6 +95,8 @@ export async function route(req,res) {
     }
     if(path==="/api/threads"&&req.method==="POST"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const throttle=await consumeRateLimit(db,"thread-create",String(p.user._id),10,60*60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
       const b=await readBody(req),names=Array.isArray(b.participants)?b.participants.map(usernameNorm).filter(Boolean):[];
       const normalized=[...new Set(names)].filter(n=>n!==p.user.usernameNormalized);
       if(!normalized.length||normalized.length>19)return json(res,400,{ok:false,error:"one_to_nineteen_other_participants_required"});
@@ -128,6 +130,8 @@ export async function route(req,res) {
     }
     if(path==="/api/messages"&&req.method==="POST"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const throttle=await consumeRateLimit(db,"message-send",String(p.user._id),60,60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
       const b=await readBody(req),threadId=String(b.threadId||""),text=safeText(b.text,4000),key=safeText(b.idempotencyKey,100);
       if(!ObjectId.isValid(threadId)||!text||!key)return json(res,400,{ok:false,error:"thread_text_and_idempotency_key_required"});
       const thread=await db.collection("threads").findOne({_id:new ObjectId(threadId),tenantId:p.user.tenantId,participantIds:p.user._id});

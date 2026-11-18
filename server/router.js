@@ -203,10 +203,79 @@ export async function route(req,res,database = null) {
         if(existing)return json(res,200,{ok:true,thread:{id:String(existing._id),title:existing.title,type:existing.type},existing:true});
       }
       const title=safeText(b.title||users.map(u=>u.displayName||u.username).join(", "),120);
-      const thread={tenantId:p.user.tenantId,type,title,participantIds,createdBy:p.user._id,createdAt:now(),updatedAt:now(),messageCount:0};
+      const thread={tenantId:p.user.tenantId,type,title,participantIds,createdBy:p.user._id,adminIds:type==="group"?[p.user._id]:[],createdAt:now(),updatedAt:now(),messageCount:0};
       const result=await db.collection("threads").insertOne(thread);
       await audit(db,p.user,"thread.create",String(result.insertedId));
       return json(res,201,{ok:true,thread:{id:String(result.insertedId),title,type}});
+    }
+    const groupMembersMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/members$/i);
+    if(groupMembersMatch){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupMembersMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      const isAdmin=admins.some(id=>String(id)===String(p.user._id));
+      if(req.method==="GET"){
+        const members=await db.collection("users").find({_id:{$in:group.participantIds}},{projection:{passwordHash:0,email:0,emailNormalized:0}}).toArray();
+        return json(res,200,{ok:true,members:members.map(member=>({id:String(member._id),username:member.username,displayName:member.displayName,admin:admins.some(id=>String(id)===String(member._id))}))});
+      }
+      if(req.method==="POST"){
+        if(!isAdmin)return json(res,403,{ok:false,error:"group_admin_required"});
+        const b=await readBody(req),names=Array.isArray(b.usernames)?[...new Set(b.usernames.map(usernameNorm).filter(Boolean))]:[];
+        if(!names.length||names.length>20)return json(res,400,{ok:false,error:"one_to_twenty_usernames_required"});
+        const candidates=await db.collection("users").find({tenantId:p.user.tenantId,status:"active",usernameNormalized:{$in:names}}).toArray();
+        if(candidates.length!==names.length)return json(res,404,{ok:false,error:"one_or_more_people_not_found"});
+        const additions=candidates.filter(member=>!group.participantIds.some(id=>String(id)===String(member._id)));
+        if(!additions.length)return json(res,200,{ok:true,added:0});
+        if(group.participantIds.length+additions.length>50)return json(res,409,{ok:false,error:"group_member_limit_reached"});
+        await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId,type:"group"},{$addToSet:{participantIds:{$each:additions.map(member=>member._id)}},$set:{updatedAt:now()}});
+        await audit(db,p.user,"group.members.add",String(group._id));
+        return json(res,200,{ok:true,added:additions.length});
+      }
+      return json(res,405,{ok:false,error:"method_not_allowed"});
+    }
+    const groupMemberRemoveMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/members\/([a-f0-9]{24})$/i);
+    if(groupMemberRemoveMatch&&req.method==="DELETE"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupMemberRemoveMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const targetId=new ObjectId(groupMemberRemoveMatch[2]);
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      const isAdmin=admins.some(id=>String(id)===String(p.user._id));
+      const isSelf=String(targetId)===String(p.user._id);
+      if(!isSelf&&!isAdmin)return json(res,403,{ok:false,error:"group_admin_required"});
+      if(!group.participantIds.some(id=>String(id)===String(targetId)))return json(res,404,{ok:false,error:"group_member_not_found"});
+      if(admins.some(id=>String(id)===String(targetId))&&admins.length<=1)return json(res,409,{ok:false,error:"last_group_admin_cannot_leave"});
+      await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId},{$pull:{participantIds:targetId,adminIds:targetId},$set:{updatedAt:now()}});
+      await audit(db,p.user,isSelf?"group.leave":"group.member.remove",String(group._id));
+      return json(res,200,{ok:true,removed:true});
+    }
+    const groupAdminPromoteMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/admins$/i);
+    if(groupAdminPromoteMatch&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupAdminPromoteMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      const b=await readBody(req),username=usernameNorm(b.username);
+      const member=await db.collection("users").findOne({tenantId:p.user.tenantId,status:"active",usernameNormalized:username});
+      if(!member||!group.participantIds.some(id=>String(id)===String(member._id)))return json(res,404,{ok:false,error:"group_member_not_found"});
+      await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId},{$addToSet:{adminIds:member._id},$set:{updatedAt:now()}});
+      await audit(db,p.user,"group.admin.promote",String(member._id));
+      return json(res,200,{ok:true,promoted:true});
+    }
+    const groupTitleMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})$/i);
+    if(groupTitleMatch&&req.method==="PATCH"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupTitleMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      const b=await readBody(req),title=safeText(b.title,120);
+      if(!title)return json(res,400,{ok:false,error:"group_title_required"});
+      await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId},{$set:{title,updatedAt:now()}});
+      await audit(db,p.user,"group.title.update",String(group._id));
+      return json(res,200,{ok:true,title});
     }
     const threadMessagesMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/messages$/i);
     if(threadMessagesMatch&&req.method==="GET"){
@@ -215,12 +284,35 @@ export async function route(req,res,database = null) {
       if(!thread)return json(res,404,{ok:false,error:"thread_not_found"});
       const rows=await db.collection("messages").find({tenantId:p.user.tenantId,threadId:thread._id}).sort({createdAt:-1}).limit(50).toArray();
       rows.reverse();
+      const incomingIds=rows.filter(message=>String(message.senderId)!==String(p.user._id)).map(message=>message._id);
+      if(incomingIds.length)await db.collection("messageReceipts").updateMany({tenantId:p.user.tenantId,userId:p.user._id,messageId:{$in:incomingIds},status:"accepted"},{$set:{status:"delivered",deliveredAt:now(),updatedAt:now()}});
       return json(res,200,{ok:true,messages:rows.map(m=>({id:String(m._id),senderId:String(m.senderId),text:m.text,status:m.status,createdAt:m.createdAt}))});
+    }
+    const threadReadMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/read$/i);
+    if(threadReadMatch&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const thread=await db.collection("threads").findOne({_id:new ObjectId(threadReadMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!thread)return json(res,404,{ok:false,error:"thread_not_found"});
+      const b=await readBody(req),filter={tenantId:p.user.tenantId,threadId:thread._id,senderId:{$ne:p.user._id}};
+      if(b.upToMessageId){if(!ObjectId.isValid(String(b.upToMessageId)))return json(res,400,{ok:false,error:"invalid_message_id"});filter._id={$lte:new ObjectId(String(b.upToMessageId))};}
+      const messages=await db.collection("messages").find(filter).sort({createdAt:1}).limit(200).toArray();
+      const ids=messages.map(message=>message._id);
+      if(!ids.length)return json(res,200,{ok:true,read:0});
+      const result=await db.collection("messageReceipts").updateMany({tenantId:p.user.tenantId,userId:p.user._id,messageId:{$in:ids},status:{$ne:"read"}},{$set:{status:"read",readAt:now(),updatedAt:now()}});
+      return json(res,200,{ok:true,read:result.modifiedCount||0});
     }
     if(path==="/api/threads"&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const rows=await db.collection("threads").find({tenantId:p.user.tenantId,participantIds:p.user._id}).sort({updatedAt:-1}).limit(50).toArray();
       return json(res,200,{ok:true,threads:rows.map(t=>({id:String(t._id),title:t.title,updatedAt:t.updatedAt,lastMessage:t.lastMessage||null}))});
+    }
+    const messageReceiptsMatch=path.match(/^\/api\/messages\/([a-f0-9]{24})\/receipts$/i);
+    if(messageReceiptsMatch&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const message=await db.collection("messages").findOne({_id:new ObjectId(messageReceiptsMatch[1]),tenantId:p.user.tenantId,senderId:p.user._id});
+      if(!message)return json(res,404,{ok:false,error:"message_not_found"});
+      const rows=await db.collection("messageReceipts").find({tenantId:p.user.tenantId,messageId:message._id}).toArray();
+      return json(res,200,{ok:true,receipts:rows.map(receipt=>({userId:String(receipt.userId),status:receipt.status,createdAt:receipt.createdAt,deliveredAt:receipt.deliveredAt||null,readAt:receipt.readAt||null}))});
     }
     if(path==="/api/messages"&&req.method==="POST"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
@@ -247,6 +339,14 @@ export async function route(req,res,database = null) {
       if (created) threadUpdate.$inc = { messageCount: 1 };
       else threadUpdate.$set.messageCount = await db.collection("messages").countDocuments({ tenantId:p.user.tenantId, threadId:thread._id });
       await db.collection("threads").updateOne({ _id:thread._id, tenantId:p.user.tenantId, participantIds:p.user._id }, threadUpdate);
+      const recipientIds=thread.participantIds.filter(id=>String(id)!==String(p.user._id));
+      for(const recipientId of recipientIds){
+        await db.collection("messageReceipts").updateOne(
+          {tenantId:p.user.tenantId,messageId:msg._id,userId:recipientId},
+          {$setOnInsert:{tenantId:p.user.tenantId,threadId:thread._id,messageId:msg._id,userId:recipientId,status:"accepted",createdAt:msg.createdAt,updatedAt:msg.createdAt}},
+          {upsert:true}
+        );
+      }
       await db.collection("outboxEvents").updateOne(
         { tenantId:p.user.tenantId, type:"message.accepted", aggregateId:msg._id },
         { $setOnInsert: { type:"message.accepted", tenantId:p.user.tenantId, aggregateId:msg._id, createdAt:msg.createdAt, processedAt:null } },

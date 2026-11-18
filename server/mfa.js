@@ -45,7 +45,7 @@ export function decryptMfaSecret(encoded) {
   return Buffer.concat([decipher.update(Buffer.from(dataText, "base64url")), decipher.final()]).toString("utf8");
 }
 export function generateTotpSecret() { return base32Encode(randomBytes(20)); }
-export function totpAt(secret, timestamp = Date.now()) {
+export export function totpAt(secret, timestamp = Date.now()) {
   const counter = Math.floor(timestamp / 1000 / STEP_SECONDS);
   const message = Buffer.alloc(8); message.writeBigUInt64BE(BigInt(counter));
   const digest = createHmac("sha1", base32Decode(secret)).update(message).digest();

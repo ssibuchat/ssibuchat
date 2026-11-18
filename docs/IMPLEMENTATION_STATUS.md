@@ -126,3 +126,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added route-level MFA integration tests with a deterministic in-memory database adapter: successful login challenge, single-use challenge, one-time recovery-code consumption, invalid code rejection and TOTP replay rejection.
 - Latest CI run [44354086821](https://github.com/ssibuchat/ssibuchat/actions/runs/44354086821) passed: npm ci; 23 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
 - Remaining Phase 1 acceptance: run the MFA/session flows against a real staging MongoDB/Vercel environment; email verification, password recovery, passkeys, tenant membership/roles, versioned migrations, admin audit UI and security notifications.
+
+
+## Phase 2 Connect execution increment — 2026-11-18
+
+- New group threads record a creator/admin; added server-authorized member listing, member add/remove, admin promotion and group-title changes. Existing groups fall back to their creator as the initial admin.
+- Added per-recipient message receipt records with idempotent upserts. Reading thread history advances accepted receipts to delivered; an explicit read endpoint advances receipts to read; senders can inspect per-recipient receipt state.
+- Added indexes for unique tenant/message/recipient receipt identity and recipient/status queries.
+- Added Connect API integration tests for accepted → delivered → read receipt progression, sender receipt inspection, group admin authorization, member addition, admin promotion and member removal.
+- GitHub Actions run [44354724227](https://github.com/ssibuchat/ssibuchat/actions/runs/44354724227) passed: npm ci; 25 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Still outstanding in Connect: durable outbox fan-out worker/retry/dead-letter processing, provider sent/failed delivery states, push realtime/presence, notifications, moderation/report/block, attachments/scanning, search/edit/delete/reactions and E2EE.

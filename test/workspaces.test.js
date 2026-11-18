@@ -65,6 +65,12 @@ test("workspace owner invites an existing user and the intended user accepts",as
   const listed=await invoke(db,owner,"GET","/api/workspaces/"+db.workspace._id+"/members");
   assert.equal(listed.status,200);
   assert.equal(listed.body.members.length,2);
+  const role=await invoke(db,owner,"PATCH","/api/workspaces/"+db.workspace._id+"/members/"+editor._id,{role:"viewer"});
+  assert.equal(role.status,200);
+  assert.equal(db.members.find(row=>String(row.userId)===String(editor._id)).role,"viewer");
+  const removed=await invoke(db,owner,"DELETE","/api/workspaces/"+db.workspace._id+"/members/"+editor._id);
+  assert.equal(removed.status,200);
+  assert.equal(db.members.some(row=>String(row.userId)===String(editor._id)),false);
 });
 
 test("shared documents enforce roles and optimistic version checks while retaining revisions",async()=>{

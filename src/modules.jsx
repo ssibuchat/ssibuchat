@@ -50,6 +50,8 @@ export default function ModuleWorkspace({ active, user }) {
   const [commerceOrders, setCommerceOrders] = useState([]);
   const [checkoutIntent, setCheckoutIntent] = useState(null);
   const [inventoryDrafts, setInventoryDrafts] = useState({});
+  const [mediaAssets, setMediaAssets] = useState([]);
+  const [selectedMediaFile, setSelectedMediaFile] = useState(null);
   const [ledgerAccountForm, setLedgerAccountForm] = useState({code:"",name:"",type:"asset",currency:"UGX"});
   const [ledgerJournalForm, setLedgerJournalForm] = useState({debitAccountId:"",creditAccountId:"",amountMinor:"",memo:""});
 
@@ -104,6 +106,12 @@ export default function ModuleWorkspace({ active, user }) {
     api("/api/commerce/storefronts?businessId="+encodeURIComponent(selectedStorefront)).then(d=>{if(!cancelled){setStorefrontProducts(d.products||[]);if(!selectedStoreProduct&&d.products?.length)setSelectedStoreProduct(d.products[0].id);}}).catch(e=>{if(!cancelled)setError(e.message);});
     return ()=>{cancelled=true;};
   }, [active,resource,selectedStorefront,user?.id]);
+  useEffect(() => {
+    if(!user||active!=="media")return;
+    let cancelled=false;
+    api("/api/media/assets").then(d=>{if(!cancelled)setMediaAssets(d.assets||[]);}).catch(e=>{if(!cancelled)setError(e.message);});
+    return ()=>{cancelled=true;};
+  },[active,user?.id]);
 
   function set(name, value) { setForm(current => ({ ...current, [name]: value })); }
   async function refresh() {
@@ -121,6 +129,20 @@ export default function ModuleWorkspace({ active, user }) {
       const saved = await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });
       setForm({}); await refresh(); if (resource === "workspaces" && saved.item?.id) setSelectedWorkspace(saved.item.id); setMessage("Saved.");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function refreshMedia() { const d=await api("/api/media/assets");setMediaAssets(d.assets||[]); }
+  async function uploadMedia(e) {
+    e.preventDefault();if(!selectedMediaFile)return;setBusy(true);setError("");setMessage("");
+    try {
+      const created=await api("/api/media/uploads",{method:"POST",body:JSON.stringify({name:selectedMediaFile.name,mimeType:selectedMediaFile.type,sizeBytes:selectedMediaFile.size})});
+      const uploaded=await fetch(created.uploadUrl,{method:"PUT",headers:created.requiredHeaders,body:selectedMediaFile});
+      if(!uploaded.ok)throw new Error("object_storage_upload_failed");
+      const completed=await api("/api/media/uploads/"+created.asset.id+"/complete",{method:"POST",body:"{}"});
+      setSelectedMediaFile(null);await refreshMedia();setMessage(completed.asset.status==="available"?"Upload scanned and ready.":"Upload received; it remains unavailable until malware scanning completes.");
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function downloadMedia(asset) {
+    setError("");try{const d=await api("/api/media/assets/"+asset.id+"/download");window.open(d.url,"_blank","noopener,noreferrer");}catch(e){setError(e.message);}
   }
   async function refreshCommerce() {
     const [stores,orders]=await Promise.all([api("/api/commerce/storefronts"),api("/api/commerce/orders")]);
@@ -259,6 +281,7 @@ export default function ModuleWorkspace({ active, user }) {
         </div>
       </> : <p className="module-muted">Create a workspace above to invite members and collaborate on shared documents.</p>}
     </div> : null}
+    {active==="media"?<div className="media-panel"><div className="eyebrow">PRIVATE MEDIA LIBRARY</div><h3>Upload and scan media</h3><p className="module-muted">Files upload directly to private object storage. Assets are downloadable only after object metadata verification and a clean malware scan.</p><form className="media-upload-form" onSubmit={uploadMedia}><label className="module-field">Choose image, audio, video or PDF<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,audio/ogg,audio/wav,application/pdf" onChange={e=>setSelectedMediaFile(e.target.files?.[0]||null)} required/></label>{selectedMediaFile?<small>{selectedMediaFile.name} · {(selectedMediaFile.size/1024/1024).toFixed(2)} MB</small>:null}<button className="btn-dark" disabled={busy||!selectedMediaFile}>{busy?"Uploading…":"Upload file"}</button></form><div className="media-assets">{mediaAssets.map(asset=><article className="media-asset" key={asset.id}><div><b>{asset.name}</b><small>{asset.mimeType} · {(asset.sizeBytes/1024/1024).toFixed(2)} MB</small></div><span className={"media-status "+asset.status}>{asset.status.replace("_"," ")}</span>{asset.status==="available"?<button type="button" className="toggle" onClick={()=>downloadMedia(asset)}>Open</button>:null}</article>)}</div></div>:null}
     {active==="commerce"&&resource==="orders"?<div className="commerce-panel">
       <div className="eyebrow">BUYER CHECKOUT</div><h3>Browse storefronts</h3>
       <form className="commerce-order-form" onSubmit={createCommerceOrder}><label className="module-field">Storefront<select value={selectedStorefront} onChange={e=>{setSelectedStorefront(e.target.value);setSelectedStoreProduct("");}} required><option value="">Choose a storefront</option>{storefronts.map(store=><option key={store.id} value={store.id}>{store.name}</option>)}</select></label><label className="module-field">Product<select value={selectedStoreProduct} onChange={e=>setSelectedStoreProduct(e.target.value)} required><option value="">Choose a product</option>{storefrontProducts.map(product=><option key={product.id} value={product.id} disabled={!product.available}>{product.name} · {product.currency} {product.priceMinor.toLocaleString()} minor units{product.available?"":" · out of stock"}</option>)}</select></label><Field label="Quantity" type="number" value={orderQuantity} onChange={setOrderQuantity} required/><button className="btn-dark" disabled={busy||!selectedStorefront||!selectedStoreProduct}>Create buyer order</button></form>
@@ -276,7 +299,7 @@ export default function ModuleWorkspace({ active, user }) {
       <div className="ledger-card"><h4>Posted journals</h4>{ledgerJournals.length?ledgerJournals.map(journal=><div className="ledger-row" key={journal.id}><span><b>{journal.memo}</b><small>{journal.currency} {journal.totalMinor.toLocaleString()} · {new Date(journal.createdAt).toLocaleString()}</small></span>{journal.reversalOf?<em>Reversal</em>:<button type="button" className="toggle" onClick={()=>reverseLedgerJournal(journal.id)} disabled={busy}>Reverse</button>}</div>):<p className="module-muted">No journals posted yet.</p>}</div>
     </div>:null}
     {active === "work" ? <div className="workspace-preferences"><b>Dashboard preferences</b><select value={prefs.layout} onChange={e=>savePrefs({...prefs,layout:e.target.value})}><option value="comfortable">Comfortable layout</option><option value="compact">Compact layout</option></select><label><input type="checkbox" checked={prefs.contextualPanels} onChange={e=>savePrefs({...prefs,contextualPanels:e.target.checked})}/> Contextual panels</label></div> : null}
-    {resource!=="orders"?<form className="module-form" onSubmit={create}>
+    {resource!=="orders"&&resource!=="media"?<form className="module-form" onSubmit={create}>
       {resource === "workspaces" ? <><Field label="Workspace name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/></> : null}
       {resource === "projects" ? <><Field label="Project name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Workspace ID (optional)" value={form.workspaceId||""} onChange={v=>set("workspaceId",v)}/></> : null}
       {resource === "tasks" ? <><Field label="Task title" value={form.title||""} onChange={v=>set("title",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/><Field label="Workspace ID (optional)" value={form.workspaceId||""} onChange={v=>set("workspaceId",v)}/><Field label="Project ID (optional)" value={form.projectId||""} onChange={v=>set("projectId",v)}/><label className="module-field">Priority<select value={form.priority||"normal"} onChange={e=>set("priority",e.target.value)}><option>low</option><option>normal</option><option>high</option><option>urgent</option></select></label><Field label="Due date" type="date" value={form.dueDate||""} onChange={v=>set("dueDate",v)}/></> : null}
@@ -292,6 +315,6 @@ export default function ModuleWorkspace({ active, user }) {
     {resource === "finance" ? <p className="module-muted">These are immutable bookkeeping records, not a wallet or payment account.</p> : null}
     {message ? <p className="module-success" role="status">{message}</p> : null}
     {error ? <p className="form-error">{error}</p> : null}
-    <div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""} · ID: {item.id}</small><span>{item.description||item.note||item.reference||""}</span>{resource==="products"?<div className="inventory-editor"><Field label="Available stock" type="number" value={String(inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0)} onChange={v=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:v,trackInventory:inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true}})}/><label className="module-field module-checkbox"><input type="checkbox" checked={inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true} onChange={e=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0,trackInventory:e.target.checked}})}/> Track inventory</label><button type="button" className="toggle" onClick={()=>saveProductInventory(item)} disabled={busy}>Save inventory</button></div>:null}</article>) : <p className="module-muted">No records yet.</p>}</div>
+    {resource!=="media"?<div className="module-records"><h3>{labels[resource]} ({items.length})</h3>{items.length ? items.map(item=><article className="module-record" key={item.id}><b>{item.name||item.title||item.description||item.type||"Record"}</b><small>{item.status||item.createdAt ? String(item.status||new Date(item.createdAt).toLocaleString()) : ""} · ID: {item.id}</small><span>{item.description||item.note||item.reference||""}</span>{resource==="products"?<div className="inventory-editor"><Field label="Available stock" type="number" value={String(inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0)} onChange={v=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:v,trackInventory:inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true}})}/><label className="module-field module-checkbox"><input type="checkbox" checked={inventoryDrafts[item.id]?.trackInventory??item.trackInventory===true} onChange={e=>setInventoryDrafts({...inventoryDrafts,[item.id]:{...inventoryDrafts[item.id],stockQuantity:inventoryDrafts[item.id]?.stockQuantity??item.stockQuantity??0,trackInventory:e.target.checked}})}/> Track inventory</label><button type="button" className="toggle" onClick={()=>saveProductInventory(item)} disabled={busy}>Save inventory</button></div>:null}</article>) : <p className="module-muted">No records yet.</p>}</div>:null}
   </section>;
 }

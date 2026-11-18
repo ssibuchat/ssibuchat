@@ -42,6 +42,8 @@ test("double-entry ledger enforces balanced postings, idempotency, trial balance
   assert.equal(posted.status,201);assert.equal(db.journals.length,1);
   const replay=await invoke(db,user,"POST","/api/finance/ledger/journals",body);
   assert.equal(replay.status,200);assert.equal(replay.body.idempotent,true);assert.equal(db.journals.length,1);
+  const collision=await invoke(db,user,"POST","/api/finance/ledger/journals",{...body,memo:"Different payload"});
+  assert.equal(collision.status,409);
   const balance=await invoke(db,user,"GET","/api/finance/ledger/trial-balance");
   assert.equal(balance.status,200);assert.equal(balance.body.accounts.length,2);
   const reversal=await invoke(db,user,"POST","/api/finance/ledger/journals/"+posted.body.journal.id+"/reverse");

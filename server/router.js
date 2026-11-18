@@ -96,7 +96,7 @@ export async function route(req,res) {
       await audit(db,p.user,"thread.create",String(result.insertedId));
       return json(res,201,{ok:true,thread:{id:String(result.insertedId),title,type}});
     }
-    const threadMessagesMatch=path.match(/^\\/api\\/threads\\/([a-f0-9]{24})\\/messages$/i);
+    const threadMessagesMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/messages$/i);
     if(threadMessagesMatch&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const thread=await db.collection("threads").findOne({_id:new ObjectId(threadMessagesMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});

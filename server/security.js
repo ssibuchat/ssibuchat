@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 const scrypt = promisify(scryptCallback);
 const COOKIE = "ssibu_session";
@@ -42,7 +42,7 @@ export async function currentPrincipal(req, db) {
   const user = await db.collection("users").findOne({ _id: session.userId, status: "active" }, { projection: { passwordHash: 0 } });
   return user ? { user, session } : null;
 }
-export function safeText(value, max = 500) { return String(value ?? "").replace(/[\\u0000-\\u001f\\u007f]/g, "").trim().slice(0, max); }
+export function safeText(value, max = 500) { return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max); }
 /**
  * Browser mutations must prove their origin. An absent Origin is not implicitly
  * trusted: use Referer as a same-origin fallback for clients that omit Origin.

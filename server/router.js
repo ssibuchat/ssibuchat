@@ -1,6 +1,7 @@
 import { getDb, ensureIndexes } from "./db.js";
 import { clearSessionCookie, createSession, currentPrincipal, hashPassword, isSameOrigin, json, readBody, safeText, setSessionCookie, verifyPassword } from "./security.js";
 import { ObjectId } from "mongodb";
+import { routeModules } from "./modules.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
 const usernameNorm = (v) => safeText(v, 32).replace(/^@/, "").toLowerCase();
@@ -52,6 +53,11 @@ export async function route(req,res) {
     }
     if(path==="/api/auth/logout"&&req.method==="POST"){const p=await currentPrincipal(req,db);if(p)await db.collection("sessions").deleteOne({_id:p.session._id});clearSessionCookie(res);return json(res,200,{ok:true});}
     const p=await getPrincipal(req,db);
+    if (path === "/api/workspace/preferences" || path === "/api/ai/consent" || path === "/api/ai/chat" || path.startsWith("/api/modules/")) {
+      if (!p) return json(res, 401, { ok: false, error: "sign_in_required" });
+      const handled = await routeModules(req, res, db, p.user, path);
+      if (handled) return handled;
+    }
     if(path==="/api/auth/me"&&req.method==="GET") return json(res,200,{ok:true,user:p?{id:String(p.user._id),username:p.user.username,displayName:p.user.displayName,role:p.user.role,accountType:p.user.accountType}:null});
     if(path.startsWith("/api/admin/")){
       if(!p||p.user.role!=="admin")return json(res,403,{ok:false,error:"admin_required"});

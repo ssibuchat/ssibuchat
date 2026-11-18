@@ -40,7 +40,7 @@ The independent foundation branch now includes separate identity and tester cont
 
 ### Not production complete
 
-Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, email verification, passkeys, full AI retrieval/governance and production operations remain incomplete. MFA API integration acceptance and account-facing setup UI are still required before broad rollout. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
+Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, email verification, passkeys, full AI retrieval/governance and production operations remain incomplete. Real MongoDB/Vercel MFA staging acceptance is still required before broad rollout. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
 
 ## Local development
 

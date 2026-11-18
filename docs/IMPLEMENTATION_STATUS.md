@@ -216,3 +216,12 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added account-security UI and integration tests for incorrect current password, short/reused passwords, credential update, session revocation, audit event and security email.
 - GitHub Actions run [44360720899](https://github.com/ssibuchat/ssibuchat/actions/runs/44360720899) passed on the current branch head: `npm ci`, `npm test`, production dependency audit and Vite production build all succeeded.
 - Phase 1 remains open: passkeys, email-change workflow, complete security notifications for all security events, admin audit interface, real staging acceptance for MongoDB/email/MFA, and browser-level identity recovery verification. Do not treat this increment as Phase 1 completion.
+
+
+## Phase 1 verified email change increment — 2026-11-18
+
+- Added authenticated, rate-limited email-change requests requiring the current password.
+- The proposed address is checked for conflicts and remains unchanged until a one-hour, single-use confirmation token sent to that address is redeemed.
+- Only the token hash is persisted; confirmation marks the new address verified, records an audit event and sends a security notice to the previous address when email delivery is configured.
+- Added account security UI for requesting and completing the email change, plus integration coverage for current-password enforcement, confirmation, replay rejection and prior-address notification.
+- CI evidence for this increment is pending; the previous successful CI run does not cover these latest commits.

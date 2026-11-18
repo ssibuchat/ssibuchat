@@ -33,3 +33,8 @@ Authenticated users can change their password through `POST /api/account/passwor
 ## Verified email address changes
 
 Authenticated email changes require the current password and are rate-limited. The new address receives a single-use, one-hour confirmation link; the current address remains unchanged until confirmation succeeds. Only the token hash and intended address are persisted, the new address is checked for conflicts, and the change is recorded in the audit log. After confirmation, the previous address receives a security notice when email delivery is configured. A failed notice does not reverse the verified email change.
+
+
+## Administrative audit visibility
+
+Independent administrators can inspect a bounded recent-event feed for their own tenant. The API selects an explicit allowlist of event fields and never returns arbitrary stored audit documents, credentials, tokens or message bodies. Non-admin users are denied. The audit view does not grant cross-tenant access; broader platform-wide audit and export workflows remain separate governance work.

@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { json, readBody, safeText } from "./security.js";
+import { json, readBody, safeText, hashToken } from "./security.js";
 import { consumeRateLimit } from "./rate-limit.js";
 
 const now=()=>new Date();
@@ -47,12 +47,13 @@ export async function routeLedger(req,res,db,principal,path){
       entries.push({accountId,code:account.code,name:account.name,type:account.type,debitMinor,creditMinor});
     }
     if(debit<=0||debit!==credit)return json(res,400,{ok:false,error:"journal_debits_must_equal_credits"});
-    const row={tenantId:principal.tenantId,ownerId:principal._id,createdBy:principal._id,currency,memo,idempotencyKey:key,totalDebitMinor:debit,totalCreditMinor:credit,entries,status:"posted",createdAt:now()};
+    const requestHash=hashToken(JSON.stringify({currency,memo,entries:entries.map(entry=>({accountId:String(entry.accountId),debitMinor:entry.debitMinor,creditMinor:entry.creditMinor}))}));
+    const row={tenantId:principal.tenantId,ownerId:principal._id,createdBy:principal._id,currency,memo,idempotencyKey:key,requestHash,totalDebitMinor:debit,totalCreditMinor:credit,entries,status:"posted",createdAt:now()};
     try{
       const created=await db.collection("journalEntries").insertOne(row);
       return json(res,201,{ok:true,journal:{id:String(created.insertedId),currency,memo,totalMinor:debit,entries:entries.map(entry=>({...entry,accountId:String(entry.accountId)}))}});
     }catch(error){
-      if(error?.code===11000){const existing=await db.collection("journalEntries").findOne({tenantId:principal.tenantId,ownerId:principal._id,idempotencyKey:key});if(existing)return json(res,200,{ok:true,idempotent:true,journal:{id:String(existing._id),currency:existing.currency,memo:existing.memo,totalMinor:existing.totalDebitMinor}});}
+      if(error?.code===11000){const existing=await db.collection("journalEntries").findOne({tenantId:principal.tenantId,ownerId:principal._id,idempotencyKey:key});if(existing){if(existing.requestHash!==requestHash)return json(res,409,{ok:false,error:"idempotency_key_reused_with_different_payload"});return json(res,200,{ok:true,idempotent:true,journal:{id:String(existing._id),currency:existing.currency,memo:existing.memo,totalMinor:existing.totalDebitMinor}});}}
       throw error;
     }
   }

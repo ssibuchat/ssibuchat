@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, totpAt, verifyTotp } from "../server/mfa.js";
 
-test("TOTP verification accepts RFC 6238 SHA-1 test vector and rejects malformed or incorrect values", () => {\n
-  const rfcSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";\n  assert.equal(totpAt(rfcSecret, 59_000), "287082");\n  const secret = generateTotpSecret();
+test("TOTP verification accepts RFC 6238 SHA-1 test vector and rejects malformed or incorrect values", () => {
+
+  const rfcSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+  assert.equal(totpAt(rfcSecret, 59_000), "287082");
+  const secret = generateTotpSecret();
   const now = 1_800_000_000_000;
   const code = totpAt(secret, now);
   assert.equal(verifyTotp(secret, code, now), true);

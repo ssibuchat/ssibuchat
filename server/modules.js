@@ -121,7 +121,14 @@ export async function routeModules(req, res, db, principal, path) {
   if (!definition) return json(res, 404, { ok: false, error: "module_not_found" });
   const collection = db.collection(definition.collection);
   if (req.method === "GET") {
-    const rows = await collection.find({ tenantId: principal.tenantId, ownerId: principal._id }).sort({ updatedAt: -1 }).limit(100).toArray();
+    let rows;
+    if (key === "workspaces") {
+      const memberships = await db.collection("workspaceMembers").find({ tenantId: principal.tenantId, userId: principal._id, status: "active" }).toArray();
+      const ids = memberships.map(row => row.workspaceId);
+      rows = ids.length ? await collection.find({ tenantId: principal.tenantId, _id: { $in: ids } }).sort({ updatedAt: -1 }).limit(100).toArray() : [];
+    } else {
+      rows = await collection.find({ tenantId: principal.tenantId, ownerId: principal._id }).sort({ updatedAt: -1 }).limit(100).toArray();
+    }
     return json(res, 200, { ok: true, items: rows.map(serialize) });
   }
   if (req.method === "POST" && !id) {
@@ -155,6 +162,10 @@ export async function routeModules(req, res, db, principal, path) {
     if (key === "finance") fields.status = fields.status || "recorded";
     const row = { ...fields, tenantId: principal.tenantId, ownerId: principal._id, createdAt: new Date(), updatedAt: new Date() };
     const result = await collection.insertOne(row);
+    if (key === "workspaces") {
+      await db.collection("workspaceMembers").updateOne({ tenantId: principal.tenantId, workspaceId: result.insertedId, userId: principal._id }, { $setOnInsert: { tenantId: principal.tenantId, workspaceId: result.insertedId, userId: principal._id, role: "owner", status: "active", createdAt: new Date() } }, { upsert: true });
+      await db.collection("workspaceActivity").insertOne({ tenantId: principal.tenantId, workspaceId: result.insertedId, actorId: principal._id, type: "workspace.create", aggregateId: result.insertedId, summary: "A workspace was created", createdAt: new Date() });
+    }
     return json(res, 201, { ok: true, item: serialize({ ...row, _id: result.insertedId }) });
   }
   if (req.method === "PATCH" && id) {

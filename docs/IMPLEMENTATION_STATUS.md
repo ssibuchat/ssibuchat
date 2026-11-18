@@ -69,3 +69,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Latest fully validated CI head before the final UI identifier adjustment: `bfc81f4d5279aedc41b240d0dab5b2842432bba0`. GitHub Actions: 14 tests passed, Vite build passed, production dependency audit found 0 vulnerabilities.
 - Full npm audit still reports 4 high-severity findings in development/build dependencies through picomatch <=4.0.7. The published upstream advisory currently has no patched version; these are not production runtime dependencies. Recheck before each release.
 - The latest UI identifier adjustment is committed separately and its CI run must complete before merge.
+
+
+## Connect retry reliability correction
+- Message idempotency conflicts now reject reuse of a key for a different thread/body.
+- A retry after a partial message write repairs thread summary/count and upserts the corresponding outbox event instead of returning early and silently losing the event.
+- Added a unique outbox identity index to prevent duplicate accepted-message events.
+- The new retry/outbox correction is committed after the last completed CI run and is awaiting its own validation.

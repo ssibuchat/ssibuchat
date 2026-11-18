@@ -38,7 +38,7 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] MFA API integration tests for login challenge success, single-use challenges, recovery-code consumption, invalid codes and cross-challenge TOTP replay prevention.
 - [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
-- [x] GitHub Actions CI: latest group-invite run [44356028441](https://github.com/ssibuchat/ssibuchat/actions/runs/44356028441) passed npm ci, 29 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+- [x] GitHub Actions CI: latest Connect messaging/moderation run [44357042708](https://github.com/ssibuchat/ssibuchat/actions/runs/44357042708) passed npm ci, 31 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
 - [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
 - [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.

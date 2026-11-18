@@ -48,7 +48,7 @@ export function projectInput(key, input) {
     if (result[field] !== undefined && !allowed.includes(result[field])) throw new Error("invalid_" + field);
   }
   if (key === "products" && result.priceMinor === undefined) throw new Error("priceMinor_required");
-  if (key === "products") { result.trackInventory = result.trackInventory === true; result.stockQuantity = result.stockQuantity ?? 0; }
+  if (key === "products") { result.trackInventory = result.trackInventory === true; result.stockQuantity = result.stockQuantity ?? 0; result.status = result.status || "active"; }
   if (key === "finance" && (result.amountMinor === undefined || !result.currency || !result.type)) throw new Error("finance_amount_currency_and_type_required");
   return result;
 }

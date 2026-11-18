@@ -13,7 +13,7 @@ test("task status and priority are allowlisted", () => {
 });
 
 test("commerce prices must be safe non-negative integer minor units", () => {
-  assert.deepEqual(projectInput("products", { name: "Notebook", currency: "UGX", priceMinor: 12500, trackInventory: false, stockQuantity: 0 }), { name: "Notebook", currency: "UGX", priceMinor: 12500 });
+  assert.deepEqual(projectInput("products", { name: "Notebook", currency: "UGX", priceMinor: 12500 }), { name: "Notebook", currency: "UGX", priceMinor: 12500, trackInventory: false, stockQuantity: 0 });
   assert.throws(() => projectInput("products", { priceMinor: -1 }), /invalid_priceMinor/);
   assert.throws(() => projectInput("products", { priceMinor: 1.25 }), /invalid_priceMinor/);
   assert.throws(() => projectInput("products", { currency: "US" }), /invalid_currency/);

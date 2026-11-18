@@ -8,6 +8,7 @@ import { routeModules } from "./modules.js";
 import { routeWorkspaces } from "./workspaces.js";
 import { sendTransactionalEmail } from "./email.js";
 import { routeLedger } from "./ledger.js";
+import { routeCommerce } from "./commerce.js";
 import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
@@ -108,6 +109,10 @@ export async function route(req,res,database = null) {
       return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,email:user.email,emailVerified:user.emailVerified===true,role:user.role}});
     }
     const p=await getPrincipal(req,db);
+    if (path.startsWith("/api/commerce")) {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      return await routeCommerce(req,res,db,p.user,path);
+    }
     if (path.startsWith("/api/finance/ledger")) {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
       return await routeLedger(req,res,db,p.user,path);

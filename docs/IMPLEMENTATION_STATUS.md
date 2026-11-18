@@ -90,3 +90,9 @@ This branch is under review and must pass the repository's complete CI workflow 
 - GitHub Actions `verify`: 14 tests passed, 0 failed; Vite production build passed; production dependency audit passed with zero production vulnerabilities.
 - The full audit still reports four high-severity development-toolchain advisories through picomatch <=4.0.7. The advisory has no confirmed patched version in the current upstream record; production dependency audit is clean, but the development-toolchain finding remains tracked.
 - Vercel Preview Comments check passed with zero unresolved feedback. Preview URL exists; authenticated end-to-end verification against a configured MongoDB and provider environment remains outstanding.
+
+
+## PTU branch validation
+- PTU security PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e` passed GitHub Actions run [44330021713](https://github.com/payteamuniversity/payteam/actions/runs/44330021713): 4 tests passed, all three server syntax checks passed, `npm ci` passed and Vite production build passed.
+- PTU branch remains a draft. Africa's Talking callback sandbox verification, broadcast consent/opt-out, staging smoke tests and operator acceptance remain release gates.
+- PTU main and production remain unchanged.

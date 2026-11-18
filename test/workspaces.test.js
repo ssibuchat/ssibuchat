@@ -16,7 +16,7 @@ function makeDb() {
     workspaces:{findOne:async filter=>String(filter._id)===String(workspace._id)&&filter.tenantId==="tenant-1"?workspace:null},
     workspaceMembers:{
       findOne:async filter=>members.find(row=>String(row.workspaceId)===String(filter.workspaceId)&&String(row.userId)===String(filter.userId)&&row.status==="active")||null,
-      updateOne:async(filter,update,options)=>{let row=members.find(item=>String(item.workspaceId)===String(filter.workspaceId)&&String(item.userId)===String(filter.userId));if(!row&&options?.upsert){row={...update.$setOnInsert};members.push(row);}if(row&&update.$set)Object.assign(row,update.$set);return {upsertedCount:row?1:0,matchedCount:row?1:0};},
+      updateOne:async(filter,update,options)=>{let row=members.find(item=>String(item.workspaceId)===String(filter.workspaceId)&&String(item.userId)===String(filter.userId));if(!row&&options?.upsert){row={tenantId:filter.tenantId,workspaceId:filter.workspaceId,userId:filter.userId,...update.$setOnInsert};members.push(row);}if(row&&update.$set)Object.assign(row,update.$set);return {upsertedCount:row?1:0,matchedCount:row?1:0};},
       find:filter=>cursor(members.filter(row=>row.tenantId===filter.tenantId&&String(row.workspaceId)===String(filter.workspaceId)&&row.status===filter.status)),
       deleteOne:async filter=>{const index=members.findIndex(row=>String(row.workspaceId)===String(filter.workspaceId)&&String(row.userId)===String(filter.userId)&&row.role!== "owner");if(index<0)return {deletedCount:0};members.splice(index,1);return {deletedCount:1};}
     },

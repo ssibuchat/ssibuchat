@@ -310,3 +310,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Tests cover SigV4 signature shape, signed content type/expiry, successful scan-gated availability, private downloads and fail-closed behavior when scanner is not configured.
 - Latest GitHub Actions run [44362880353](https://github.com/ssibuchat/ssibuchat/actions/runs/44362880353) passed: npm ci; 47 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
 - Deployment still requires S3-compatible endpoint/bucket/credentials and a malware-scanner URL/token. Transcoding, thumbnail generation, deletion/retention, quotas and production object-store smoke tests remain open.
+
+
+## Calls/WebRTC direct-call increment — 2026-11-18
+
+- Added authenticated call creation from an existing Connect thread, with 2–8 thread participants, audio/video media type, invited/joined/left participant state and one-hour call expiry.
+- Added participant-only offer/answer/ICE/candidate/hangup signaling, recipient-scoped retrieval, payload size limits, rate limits and ten-minute signal TTL.
+- Added direct one-to-one browser audio/video call UI: microphone/camera acquisition, RTCPeerConnection, SDP offer/answer, ICE exchange, remote media playback, incoming call polling and hangup/track cleanup.
+- Browser ICE server configuration is exposed through VITE_SSIBUCHAT_ICE_SERVERS_JSON; a public STUN fallback is used if no list is configured.
+- Tests cover call membership, join, offer signal routing, oversized payload rejection, leave and end lifecycle.
+- Latest GitHub Actions run [44363979047](https://github.com/ssibuchat/ssibuchat/actions/runs/44363979047) passed: npm ci; 48 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Remaining Calls acceptance: production TURN relay deployment, push/realtime signaling workers (client currently polls), group-call media topology, reconnect/QoS and browser/device end-to-end testing. No production call acceptance has been performed.

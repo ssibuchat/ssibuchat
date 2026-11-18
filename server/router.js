@@ -1,5 +1,5 @@
 import { getDb, ensureIndexes } from "./db.js";
-import { clearSessionCookie, createSession, currentPrincipal, hashPassword, isSameOrigin, json, readBody, safeText, setSessionCookie, verifyPassword } from "./security.js";
+import { clearSessionCookie, constantTimeEqual, createSession, currentPrincipal, hashPassword, isSameOrigin, json, readBody, safeText, setSessionCookie, verifyPassword } from "./security.js";
 import { ObjectId } from "mongodb";
 import { routeModules } from "./modules.js";
 import { consumeRateLimit } from "./rate-limit.js";
@@ -19,7 +19,7 @@ async function bootstrap(req, res, db, body) {
   const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
   const throttle = await consumeRateLimit(db, "bootstrap", ip, 3, 60 * 60 * 1000);
   if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
-  if (!secret || !process.env.SSIBUCHAT_SESSION_SECRET || !body.secret || body.secret !== secret) return json(res, 403, { ok:false, error:"bootstrap_not_authorized" });
+  if (!secret || !process.env.SSIBUCHAT_SESSION_SECRET || !body.secret || !constantTimeEqual(body.secret, secret)) return json(res, 403, { ok:false, error:"bootstrap_not_authorized" });
   if (await db.collection("users").countDocuments({ role:"admin" })) return json(res, 409, { ok:false, error:"admin_already_bootstrapped" });
   const email=emailNorm(body.email), password=String(body.password||""), username=usernameNorm(body.username || email.split("@")[0]);
   if (!email.includes("@") || password.length<12) return json(res,400,{ok:false,error:"valid_email_and_12_character_password_required"});

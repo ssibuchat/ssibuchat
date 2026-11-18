@@ -298,3 +298,15 @@ This branch is under review and must pass the repository's complete CI workflow 
 
 - Latest code-bearing head `5570c71ffeb3e1acd6921308619eb8144616ca23` passed GitHub Actions [run 44362371320](https://github.com/ssibuchat/ssibuchat/actions/runs/44362371320): `npm ci`; **44 tests passed, 0 failed**; production dependency audit passed; Vite production build passed.
 - The subsequent branch head `64ca7e8cc7c97e6011d3e619a04ef4ff2d76d5b2` adds only implementation-status documentation; no application-code changes were made after the validated code-bearing head at the time of this record.
+
+
+## Media binary upload foundation — 2026-11-18
+
+- Added AWS Signature Version 4 presigned PUT/HEAD/GET URL signing for HTTPS S3-compatible object storage (AWS S3/Cloudflare R2-compatible endpoint).
+- Added private upload flow with generated tenant/user-scoped object keys, allowlisted image/audio/video/PDF MIME types, per-type size caps and signed Content-Type header.
+- Completion verifies object existence, exact Content-Length and Content-Type with a signed HEAD request.
+- Added malware-scanner adapter boundary. Only scanner result status=clean changes asset status to available; absent/unavailable scanner leaves pending_scan and download endpoint denies access.
+- Added private signed downloads restricted to the asset owner and tenant, storage key/ownership indexes, UI direct upload, scan status and open controls.
+- Tests cover SigV4 signature shape, signed content type/expiry, successful scan-gated availability, private downloads and fail-closed behavior when scanner is not configured.
+- Latest GitHub Actions run [44362880353](https://github.com/ssibuchat/ssibuchat/actions/runs/44362880353) passed: npm ci; 47 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Deployment still requires S3-compatible endpoint/bucket/credentials and a malware-scanner URL/token. Transcoding, thumbnail generation, deletion/retention, quotas and production object-store smoke tests remain open.

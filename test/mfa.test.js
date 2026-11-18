@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
 import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, totpAt, verifyTotp } from "../server/mfa.js";
 
-test("TOTP verification accepts current code and rejects malformed or incorrect values", () => {
-  const secret = generateTotpSecret();
+test("TOTP verification accepts RFC 6238 SHA-1 test vector and rejects malformed or incorrect values", () => {\n
+  const rfcSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";\n  assert.equal(totpAt(rfcSecret, 59_000), "287082");\n  const secret = generateTotpSecret();
   const now = 1_800_000_000_000;
   const code = totpAt(secret, now);
   assert.equal(verifyTotp(secret, code, now), true);
   assert.equal(verifyTotp(secret, "12x456", now), false);
-  assert.equal(verifyTotp(secret, "000000", now), false);
+  const wrong = String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+  assert.equal(verifyTotp(secret, wrong, now), false);
 });
 
 test("MFA secret encryption authenticates ciphertext", () => {

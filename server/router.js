@@ -1,6 +1,9 @@
 import { getDb, ensureIndexes } from "./db.js";
 import { clearSessionCookie, constantTimeEqual, createSession, currentPrincipal, hashPassword, isSameOrigin, json, readBody, safeText, setSessionCookie, verifyPassword } from "./security.js";
 import { ObjectId } from "mongodb";
+import { randomBytes } from "node:crypto";
+import { hashToken } from "./security.js";
+import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp, createRecoveryCodes } from "./mfa.js";
 import { routeModules } from "./modules.js";
 import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
@@ -58,11 +61,86 @@ export async function route(req,res) {
       const user=await db.collection("users").findOne({$or:[{emailNormalized:login},{usernameNormalized:usernameNorm(login)}]});
       if(!user||user.status!=="active"||!(await verifyPassword(b.password||"",user.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
       if(isTester(user)&&!(await policy(db)).enabled) return json(res,403,{ok:false,error:"tester_access_disabled"});
+      if (user.mfaEnabled === true) {
+        const challengeToken = randomBytes(32).toString("base64url");
+        await db.collection("mfaChallenges").insertOne({ tokenHash: hashToken(challengeToken), userId: user._id, createdAt: now(), expiresAt: new Date(Date.now() + 5 * 60 * 1000), usedAt: null });
+        await audit(db, user, "auth.mfa.challenge");
+        return json(res, 202, { ok: true, mfaRequired: true, challengeToken, expiresInSeconds: 300 });
+      }
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"auth.login");
       return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,role:user.role}});
     }
     if(path==="/api/auth/logout"&&req.method==="POST"){const p=await currentPrincipal(req,db);if(p)await db.collection("sessions").deleteOne({_id:p.session._id});clearSessionCookie(res);return json(res,200,{ok:true});}
+    if (path === "/api/auth/mfa/verify" && req.method === "POST") {
+      const b = await readBody(req);
+      const challengeToken = String(b.challengeToken || "");
+      const code = String(b.code || "").trim();
+      if (!challengeToken || !code) return json(res, 400, { ok:false, error:"challenge_and_code_required" });
+      const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+      const throttle = await consumeRateLimit(db, "mfa-verify", hashToken(challengeToken) + "|" + ip, 5, 5 * 60 * 1000);
+      if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
+      const challenge = await db.collection("mfaChallenges").findOne({ tokenHash:hashToken(challengeToken), expiresAt:{$gt:now()}, usedAt:null });
+      if (!challenge) return json(res, 401, { ok:false, error:"invalid_or_expired_mfa_challenge" });
+      const user = await db.collection("users").findOne({ _id:challenge.userId, status:"active", mfaEnabled:true });
+      if (!user) return json(res, 401, { ok:false, error:"invalid_or_expired_mfa_challenge" });
+      let valid = false, recoveryHash = null;
+      try { valid = verifyTotp(decryptMfaSecret(user.mfaSecretEncrypted), code); } catch { valid = false; }
+      if (!valid) {
+        recoveryHash = hashRecoveryCode(code);
+        valid = Array.isArray(user.recoveryCodeHashes) && user.recoveryCodeHashes.includes(recoveryHash);
+      }
+      if (!valid) return json(res, 401, { ok:false, error:"invalid_mfa_code" });
+      const claimed = await db.collection("mfaChallenges").updateOne({ _id:challenge._id, usedAt:null, expiresAt:{$gt:now()} }, { $set:{ usedAt:now() } });
+      if (claimed.modifiedCount !== 1) return json(res, 409, { ok:false, error:"mfa_challenge_already_used" });
+      if (recoveryHash) {
+        const consumed = await db.collection("users").updateOne({ _id:user._id, recoveryCodeHashes:recoveryHash }, { $pull:{ recoveryCodeHashes:recoveryHash } });
+        if (consumed.modifiedCount !== 1) return json(res, 401, { ok:false, error:"invalid_mfa_code" });
+      }
+      const token = await createSession(db,user); setSessionCookie(res,token); await audit(db,user,"auth.mfa.success");
+      return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,role:user.role}});
+    }
     const p=await getPrincipal(req,db);
+    if (path === "/api/account/mfa" && req.method === "GET") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      return json(res,200,{ok:true,enabled:p.user.mfaEnabled===true,recoveryCodesRemaining:Array.isArray(p.user.recoveryCodeHashes)?p.user.recoveryCodeHashes.length:0});
+    }
+    if (path === "/api/account/mfa/setup" && req.method === "POST") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      if (p.user.mfaEnabled) return json(res,409,{ok:false,error:"mfa_already_enabled"});
+      const secret = generateTotpSecret();
+      const encrypted = encryptMfaSecret(secret);
+      const expiresAt = new Date(Date.now()+10*60*1000);
+      await db.collection("users").updateOne({_id:p.user._id},{$set:{mfaPendingSecretEncrypted:encrypted,mfaPendingExpiresAt:expiresAt}});
+      await audit(db,p.user,"account.mfa.setup.started");
+      return json(res,200,{ok:true,secret,otpauthUrl:provisioningUri(secret,p.user.email||p.user.username),expiresAt});
+    }
+    if (path === "/api/account/mfa/confirm" && req.method === "POST") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      if (p.user.mfaEnabled) return json(res,409,{ok:false,error:"mfa_already_enabled"});
+      const b = await readBody(req);
+      if (!p.user.mfaPendingSecretEncrypted || !p.user.mfaPendingExpiresAt || p.user.mfaPendingExpiresAt <= now()) return json(res,409,{ok:false,error:"mfa_setup_expired"});
+      let secret;
+      try { secret = decryptMfaSecret(p.user.mfaPendingSecretEncrypted); } catch { return json(res,503,{ok:false,error:"mfa_configuration_unavailable"}); }
+      if (!verifyTotp(secret,b.code)) return json(res,400,{ok:false,error:"invalid_mfa_code"});
+      const recoveryCodes = createRecoveryCodes();
+      const enabled = await db.collection("users").updateOne({_id:p.user._id,mfaEnabled:{$ne:true}},{$set:{mfaEnabled:true,mfaSecretEncrypted:p.user.mfaPendingSecretEncrypted,recoveryCodeHashes:recoveryCodes.map(hashRecoveryCode),mfaEnabledAt:now()},$unset:{mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
+      if (enabled.modifiedCount !== 1) return json(res,409,{ok:false,error:"mfa_state_changed"});
+      await audit(db,p.user,"account.mfa.enabled");
+      return json(res,200,{ok:true,enabled:true,recoveryCodes});
+    }
+    if (path === "/api/account/mfa/disable" && req.method === "POST") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      const b = await readBody(req);
+      if (!(await verifyPassword(b.password||"",p.user.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
+      let valid = false;
+      try { valid = verifyTotp(decryptMfaSecret(p.user.mfaSecretEncrypted),b.code); } catch { valid = false; }
+      if (!valid) return json(res,401,{ok:false,error:"invalid_mfa_code"});
+      await db.collection("users").updateOne({_id:p.user._id},{$unset:{mfaEnabled:"",mfaSecretEncrypted:"",recoveryCodeHashes:"",mfaEnabledAt:"",mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
+      await db.collection("sessions").deleteMany({userId:p.user._id});
+      clearSessionCookie(res);
+      await audit(db,p.user,"account.mfa.disabled");
+      return json(res,200,{ok:true,enabled:false});
+    }
     if (path === "/api/workspace/preferences" || path === "/api/ai/consent" || path === "/api/ai/chat" || path.startsWith("/api/modules/")) {
       if (!p) return json(res, 401, { ok: false, error: "sign_in_required" });
       await routeModules(req, res, db, p.user, path);

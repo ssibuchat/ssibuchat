@@ -116,3 +116,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Full dependency audit still reports four high-severity development-toolchain findings rooted in picomatch 4.0.7. The published advisory currently lists no patched release; no unsafe override or audit suppression was applied. Production dependency audit remains clean.
 - MFA API/database integration tests, account-facing MFA setup UI, email verification, recovery workflow, and broader identity/tenant governance remain open acceptance work.
 - PTU MAC authority and independent tester-policy boundary remain unchanged. No merge to the default branch and no production deployment occurred.
+
+
+## Phase 1 identity completion increment — 2026-11-18
+
+- Added account-facing authenticator setup and confirmation, manual secret/provisioning URI presentation, one-time recovery-code display, MFA disable, and login challenge verification.
+- Added TOTP replay prevention across distinct login challenges by atomically advancing the last accepted time-step.
+- Added authenticated session inventory and a revoke-other-sessions control; the current session remains active.
+- Added route-level MFA integration tests with a deterministic in-memory database adapter: successful login challenge, single-use challenge, one-time recovery-code consumption, invalid code rejection and TOTP replay rejection.
+- Latest CI run [44354086821](https://github.com/ssibuchat/ssibuchat/actions/runs/44354086821) passed: npm ci; 23 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Remaining Phase 1 acceptance: run the MFA/session flows against a real staging MongoDB/Vercel environment; email verification, password recovery, passkeys, tenant membership/roles, versioned migrations, admin audit UI and security notifications.

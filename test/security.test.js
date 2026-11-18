@@ -21,19 +21,23 @@ test("safeText strips control characters and bounds input", () => {
 });
 
 test("same-origin guard rejects foreign origins", () => {
-  assert.equal(isSameOrigin({ headers: { origin: "https://evil.example", host: "ssibuchat.example" } }), false);
-  assert.equal(isSameOrigin({ headers: { origin: "https://ssibuchat.example", host: "ssibuchat.example" } }), true);
+  assert.equal(isSameOrigin({ headers: { origin: "https://evil.example", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), false);
+  assert.equal(isSameOrigin({ headers: { origin: "https://ssibuchat.example", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), true);
 });
 
 test("same-origin guard rejects missing and opaque origin metadata", () => {
-  assert.equal(isSameOrigin({ headers: { host: "ssibuchat.example" } }), false);
-  assert.equal(isSameOrigin({ headers: { origin: "null", host: "ssibuchat.example" } }), false);
+  assert.equal(isSameOrigin({ headers: { host: "ssibuchat.example", "x-forwarded-proto": "https" } }), false);
+  assert.equal(isSameOrigin({ headers: { origin: "null", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), false);
 });
 
 test("same-origin guard accepts same-origin Referer fallback", () => {
-  assert.equal(isSameOrigin({ headers: { referer: "https://ssibuchat.example/account", host: "ssibuchat.example" } }), true);
+  assert.equal(isSameOrigin({ headers: { referer: "https://ssibuchat.example/account", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), true);
 });
 
 test("same-origin guard rejects a foreign Referer fallback", () => {
-  assert.equal(isSameOrigin({ headers: { referer: "https://evil.example/account", host: "ssibuchat.example" } }), false);
+  assert.equal(isSameOrigin({ headers: { referer: "https://evil.example/account", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), false);
+});
+
+test("same-origin guard rejects scheme downgrade even when host matches", () => {
+  assert.equal(isSameOrigin({ headers: { origin: "http://ssibuchat.example", host: "ssibuchat.example", "x-forwarded-proto": "https" } }), false);
 });

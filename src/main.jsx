@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Activity, BriefcaseBusiness, CalendarDays, ChevronRight, CircleUserRound, CreditCard, Film, Headphones, LayoutDashboard, LogIn, MessageCircle, Search, ShieldCheck, Sparkles, Users, Wallet, X } from "lucide-react";
 import "./styles.css";
@@ -13,13 +13,96 @@ const pillars = [
 ];
 function App(){
  const [user,setUser]=useState(null),[auth,setAuth]=useState(false),[registerMode,setRegisterMode]=useState(false),[login,setLogin]=useState(""),[username,setUsername]=useState(""),[displayName,setDisplayName]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[active,setActive]=useState("connect"),[query,setQuery]=useState(""),[notice,setNotice]=useState(""),[threads,setThreads]=useState([]),[selectedThread,setSelectedThread]=useState(null),[messages,setMessages]=useState([]),[draft,setDraft]=useState(""),[newRecipient,setNewRecipient]=useState(""),[connectError,setConnectError]=useState(""),[showAdmin,setShowAdmin]=useState(false),[showAudit,setShowAudit]=useState(false),[auditEvents,setAuditEvents]=useState([]),[testerPolicy,setTesterPolicy]=useState({enabled:false}),[testers,setTesters]=useState([]),[testerUsername,setTesterUsername]=useState(""),[testerPassword,setTesterPassword]=useState(""),[adminError,setAdminError]=useState(""),[mfaChallenge,setMfaChallenge]=useState(""),[mfaCode,setMfaCode]=useState(""),[showSecurity,setShowSecurity]=useState(false),[mfaStatus,setMfaStatus]=useState({enabled:false,recoveryCodesRemaining:0}),[mfaSetup,setMfaSetup]=useState(null),[mfaSetupCode,setMfaSetupCode]=useState(""),[mfaRecoveryCodes,setMfaRecoveryCodes]=useState([]),[mfaDisableCode,setMfaDisableCode]=useState(""),[mfaDisablePassword,setMfaDisablePassword]=useState(""),[mfaMessage,setMfaMessage]=useState(""),[mfaSessions,setMfaSessions]=useState([]),[passwordResetMode,setPasswordResetMode]=useState(false),[resetEmail,setResetEmail]=useState(""),[resetToken,setResetToken]=useState(""),[resetNewPassword,setResetNewPassword]=useState(""),[currentPassword,setCurrentPassword]=useState(""),[newPassword,setNewPassword]=useState(""),[confirmNewPassword,setConfirmNewPassword]=useState(""),[emailChangeAddress,setEmailChangeAddress]=useState(""),[emailChangePassword,setEmailChangePassword]=useState("");
+ const [incomingCalls,setIncomingCalls]=useState([]),[activeCall,setActiveCall]=useState(null),[callLocalStream,setCallLocalStream]=useState(null),[callRemoteStream,setCallRemoteStream]=useState(null),[callStatus,setCallStatus]=useState(""),[callError,setCallError]=useState("");
+ const callPeerRef=useRef(null),callLocalRef=useRef(null),localCallVideoRef=useRef(null),remoteCallVideoRef=useRef(null),callSeenRef=useRef(new Set()),callPendingIceRef=useRef([]);
  async function request(path,options={}){const res=await fetch(path,{credentials:"include",headers:{"content-type":"application/json",...(options.headers||{})},...options});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||"request_failed");return data;}
  useEffect(()=>{request("/api/auth/me").then(d=>setUser(d.user)).catch(()=>{});},[]);
  async function refreshThreads(){const d=await request("/api/threads");setThreads(d.threads||[]);}
  async function openThread(thread){setSelectedThread(thread);setConnectError("");try{const d=await request("/api/threads/"+thread.id+"/messages");setMessages(d.messages||[]);}catch(e){setConnectError(e.message);}}
  async function startChat(e){e.preventDefault();setConnectError("");try{const d=await request("/api/threads",{method:"POST",body:JSON.stringify({participants:newRecipient.split(",").map(value=>value.trim()).filter(Boolean)})});setNewRecipient("");await refreshThreads();await openThread(d.thread);}catch(e){setConnectError(e.message==="one_or_more_people_not_found"?"That username was not found in your SsibuChat network.":e.message);}}
  async function sendMessage(e){e.preventDefault();if(!selectedThread||!draft.trim())return;const text=draft.trim();setDraft("");setConnectError("");try{await request("/api/messages",{method:"POST",body:JSON.stringify({threadId:selectedThread.id,text,idempotencyKey:(window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():String(Date.now())+"-"+Math.random())})});await openThread(selectedThread);await refreshThreads();}catch(e){setDraft(text);setConnectError(e.message);}}
+ async function refreshIncomingCalls(){try{const d=await request("/api/calls");setIncomingCalls((d.calls||[]).filter(call=>call.createdBy!==user?.id));}catch{}}
+ async function sendCallSignal(callId,type,targetUserId,payload){await request("/api/calls/"+callId+"/signal",{method:"POST",body:JSON.stringify({type,targetUserId,payload})});}
+ async function prepareCallMedia(mediaType){
+   if(!navigator.mediaDevices?.getUserMedia)throw new Error("camera_or_microphone_unavailable");
+   const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:mediaType==="video"});
+   callLocalRef.current=stream;setCallLocalStream(stream);return stream;
+ }
+ function createCallPeer(call,remoteUserId,stream){
+   let iceServers=[];
+   try{iceServers=JSON.parse(import.meta.env.VITE_SSIBUCHAT_ICE_SERVERS_JSON||"[]");}catch{}
+   if(!iceServers.length)iceServers=[{urls:"stun:stun.l.google.com:19302"}];
+   const pc=new RTCPeerConnection({iceServers});
+   stream.getTracks().forEach(track=>pc.addTrack(track,stream));
+   pc.ontrack=event=>{const stream=event.streams?.[0];if(stream)setCallRemoteStream(stream);};
+   pc.onicecandidate=event=>{if(event.candidate)sendCallSignal(call.id,"ice",remoteUserId,event.candidate.toJSON()).catch(e=>setCallError(e.message));};
+   pc.onconnectionstatechange=()=>setCallStatus(pc.connectionState==="connected"?"Connected":pc.connectionState);
+   callPeerRef.current=pc;return pc;
+ }
+ async function startCall(mediaType){
+   if(!selectedThread||selectedThread.type!=="direct")return;
+   setCallError("");setCallStatus("Starting call…");
+   try{
+     const created=await request("/api/calls",{method:"POST",body:JSON.stringify({threadId:selectedThread.id,mediaType})});
+     const remoteUserId=created.call.participantIds.find(id=>id!==user.id);
+     setActiveCall({...created.call,remoteUserId});
+     callSeenRef.current=new Set();callPendingIceRef.current=[];
+     const stream=await prepareCallMedia(mediaType),pc=createCallPeer(created.call,remoteUserId,stream);
+     const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+     await sendCallSignal(created.call.id,"offer",remoteUserId,pc.localDescription);
+     setCallStatus("Calling…");
+   }catch(e){setCallError(e.message);setCallStatus("Call could not start.");}
+ }
+ async function joinCall(call){
+   setCallError("");setCallStatus("Joining call…");
+   try{
+     await request("/api/calls/"+call.id+"/join",{method:"POST",body:"{}"});
+     const remoteUserId=call.createdBy;
+     setActiveCall({...call,remoteUserId});callSeenRef.current=new Set();callPendingIceRef.current=[];
+     const stream=await prepareCallMedia(call.mediaType);createCallPeer(call,remoteUserId,stream);
+     setCallStatus("Joined. Connecting…");await refreshIncomingCalls();
+   }catch(e){setCallError(e.message);setCallStatus("Could not join call.");}
+ }
+ async function endCall(sendSignal=true){
+   const current=activeCall;if(!current)return;
+   if(sendSignal&&current.remoteUserId)try{await sendCallSignal(current.id,"hangup",current.remoteUserId,{});}catch{}
+   try{await request("/api/calls/"+current.id+"/leave",{method:"POST",body:"{}"});}catch{}
+   callPeerRef.current?.close();callPeerRef.current=null;
+   callLocalRef.current?.getTracks().forEach(track=>track.stop());callLocalRef.current=null;
+   setCallLocalStream(null);setCallRemoteStream(null);setActiveCall(null);setCallStatus("");await refreshIncomingCalls();
+ }
+
  useEffect(()=>{if(user)refreshThreads();else{setThreads([]);setSelectedThread(null);setMessages([]);}},[user]);
+ useEffect(()=>{if(!user||active!=="connect")return;refreshIncomingCalls();const timer=setInterval(refreshIncomingCalls,5000);return()=>clearInterval(timer);},[user,active]);
+ useEffect(()=>{if(callLocalRef.current&&localCallVideoRef.current)localCallVideoRef.current.srcObject=callLocalRef.current;},[callLocalStream]);
+ useEffect(()=>{if(callRemoteStream&&remoteCallVideoRef.current)remoteCallVideoRef.current.srcObject=callRemoteStream;},[callRemoteStream]);
+ useEffect(()=>{
+   if(!activeCall)return;
+   let stopped=false;
+   const poll=async()=>{
+     try{
+       const after=new Date(Date.now()-60_000).toISOString();
+       const data=await request("/api/calls/"+activeCall.id+"/signals?after="+encodeURIComponent(after));
+       for(const signal of data.signals||[]){
+         if(stopped||callSeenRef.current.has(signal.id))continue;
+         callSeenRef.current.add(signal.id);
+         const pc=callPeerRef.current;if(!pc)continue;
+         if(signal.type==="offer"){
+           await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
+           for(const candidate of callPendingIceRef.current.splice(0))await pc.addIceCandidate(new RTCIceCandidate(candidate));
+           const answer=await pc.createAnswer();await pc.setLocalDescription(answer);await sendCallSignal(activeCall.id,"answer",signal.senderId,pc.localDescription);setCallStatus("Answering…");
+         }else if(signal.type==="answer"){
+           await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
+           for(const candidate of callPendingIceRef.current.splice(0))await pc.addIceCandidate(new RTCIceCandidate(candidate));
+         }else if(signal.type==="ice"||signal.type==="candidate"){
+           if(pc.remoteDescription)await pc.addIceCandidate(new RTCIceCandidate(signal.payload));else callPendingIceRef.current.push(signal.payload);
+         }else if(signal.type==="hangup"){await endCall(false);return;}
+       }
+     }catch(e){if(!stopped)setCallError(e.message);}
+   };
+   poll();const timer=setInterval(poll,1200);return()=>{stopped=true;clearInterval(timer);};
+ },[activeCall?.id]);
+
  useEffect(()=>{const params=new URLSearchParams(window.location.search);const verifyToken=params.get("verifyEmail");const emailChangeToken=params.get("confirmEmailChange");const passwordToken=params.get("resetPassword");if(verifyToken){request("/api/auth/email/verification/confirm",{method:"POST",body:JSON.stringify({token:verifyToken})}).then(()=>{setUser(current=>current?{...current,emailVerified:true}:current);setNotice("Your email address is verified.");}).catch(e=>setNotice(e.message));params.delete("verifyEmail");}if(emailChangeToken){request("/api/auth/email/change/confirm",{method:"POST",body:JSON.stringify({token:emailChangeToken})}).then(d=>{setUser(current=>current?{...current,email:d.email,emailVerified:true}:current);setNotice("Your email address has been changed and verified.");}).catch(e=>setNotice(e.message));params.delete("confirmEmailChange");}if(passwordToken){setResetToken(passwordToken);setPasswordResetMode(true);setAuth(true);params.delete("resetPassword");}if(verifyToken||emailChangeToken||passwordToken)window.history.replaceState({},document.title,window.location.pathname+(params.toString()?"?"+params.toString():""));},[]);;
  async function signIn(e){e.preventDefault();setBusy(true);setError("");try{if(mfaChallenge){const d=await request("/api/auth/mfa/verify",{method:"POST",body:JSON.stringify({challengeToken:mfaChallenge,code:mfaCode})});setUser(d.user);setAuth(false);setMfaChallenge("");setMfaCode("");setPassword("");return;}const d=registerMode?await request("/api/auth/register",{method:"POST",body:JSON.stringify({email:login,username,displayName,password})}):await request("/api/auth/login",{method:"POST",body:JSON.stringify({login,password})});if(d.mfaRequired){setMfaChallenge(d.challengeToken);setMfaCode("");setError("");return;}setUser(d.user);setAuth(false);setPassword("");setRegisterMode(false);}catch(err){setError(err.message==="invalid_credentials"?"Email/username or password is incorrect.":err.message==="invalid_mfa_code"?"That verification code is invalid.":err.message);}finally{setBusy(false);}}
  async function signOut(){await request("/api/auth/logout",{method:"POST",body:"{}"});setUser(null);setThreads([]);setShowAdmin(false);setShowSecurity(false);setMfaChallenge("");}
@@ -48,7 +131,7 @@ function App(){
    <section className="pillar-grid">{pillars.map((p,i)=><button className={"pillar-card "+p.tone+(active===p.id?" selected":"")} key={p.id} onClick={()=>setActive(p.id)}><div className="pillar-top"><span className="pillar-icon"><p.icon size={21}/></span><span className="pillar-index">0{i+1}</span></div><h3>{p.label}</h3><p>{p.desc}</p><span className="card-arrow"><ChevronRight size={17}/></span></button>)}</section>
    <section className="workspace-row"><div className="workspace-card"><div className="workspace-heading"><div><div className="eyebrow">YOUR WORKSPACE</div><h2>{current.label} hub</h2></div><span className="live-tag"><span/> PERSONAL SPACE</span></div><div className="workspace-content"><div className="workspace-symbol"><current.icon size={28}/></div><div><h3>{current.desc}</h3><p>{active==="connect"?"Your conversations, people and communities belong here.":"The "+current.label.toLowerCase()+" tools are being delivered in phased modules."}</p></div><button className="round-arrow" onClick={()=>setNotice(current.label+" module selected. Feature delivery is tracked in the roadmap.")}><ChevronRight/></button></div><div className="workspace-foot"><span>✓ Modular by design</span><span>✓ Works across devices</span><span>✓ Built to grow</span></div></div>
     <div className="quick-card"><div className="eyebrow">QUICK ACCESS</div><h3>Pick up where you left off</h3>{threads.slice(0,3).map(t=><div className="quick-item" key={t.id}><span className="quick-avatar"><Users size={16}/></span><span>{t.title||"Conversation"}</span><ChevronRight size={15}/></div>)}{(!user||!threads.length)?<div className="empty-quick"><div className="empty-icon"><MessageCircle/></div><b>Your space is ready</b><span>Sign in to see your conversations and activity.</span></div>:null}<button className="quick-link" onClick={()=>user?setActive("connect"):setAuth(true)}>{user?"Open Connect":"Get started"} <ChevronRight size={15}/></button></div></section>
-   {active==="connect"?<section className="connect-panel"><div className="connect-head"><div><div className="eyebrow">CONNECT</div><h2>Your conversations</h2><p>Direct and group conversations inside your SsibuChat network.</p></div><form className="new-chat-form" onSubmit={startChat}><input aria-label="Username to message" placeholder="Start chat with @username, @username" value={newRecipient} onChange={e=>setNewRecipient(e.target.value)} minLength={3} required/><button className="btn-dark">New chat</button></form></div><div className="connect-body"><div className="thread-list">{threads.filter(t=>(t.title||"").toLowerCase().includes(query.toLowerCase())||(t.lastMessage||"").toLowerCase().includes(query.toLowerCase())).map(t=><button key={t.id} className={"thread-choice"+(selectedThread?.id===t.id?" active":"")} onClick={()=>openThread(t)}><span className="thread-avatar"><Users size={17}/></span><span><b>{t.title||"Conversation"}</b><small>{t.lastMessage||"No messages yet"}</small></span></button>)}{!threads.length?<div className="thread-empty">No conversations yet. Start one using a username above.</div>:null}</div><div className="conversation-view">{selectedThread?<><div className="conversation-title"><b>{selectedThread.title||"Conversation"}</b><small>{selectedThread.type==="group"?"Group conversation":"Direct conversation"}</small></div><div className="message-stream">{messages.map(m=><div key={m.id} className={"message-line"+(m.senderId===user?.id?" mine":"")}><div className="message-bubble">{m.text}<small>{new Date(m.createdAt).toLocaleString()}</small></div></div>)}{!messages.length?<div className="thread-empty">Say hello to start this conversation.</div>:null}</div><form className="message-compose" onSubmit={sendMessage}><input aria-label="Message" placeholder="Write a message…" value={draft} onChange={e=>setDraft(e.target.value)} maxLength={4000}/><button className="btn-dark" disabled={!draft.trim()}>Send</button></form></>:<div className="conversation-placeholder"><div className="empty-icon"><MessageCircle/></div><b>Select a conversation</b><span>Your messages will appear here.</span></div>}</div></div>{connectError?<p className="form-error">{connectError}</p>:null}</section>:null}
+   {active==="connect"?<section className="connect-panel"><div className="connect-head"><div><div className="eyebrow">CONNECT</div><h2>Your conversations</h2><p>Direct and group conversations inside your SsibuChat network.</p></div><form className="new-chat-form" onSubmit={startChat}><input aria-label="Username to message" placeholder="Start chat with @username, @username" value={newRecipient} onChange={e=>setNewRecipient(e.target.value)} minLength={3} required/><button className="btn-dark">New chat</button></form></div><div className="connect-body"><div className="thread-list">{incomingCalls.map(call=><button key={call.id} className="incoming-call" onClick={()=>joinCall(call)}><b>Incoming {call.mediaType} call</b><small>Tap to join</small></button>)}{threads.filter(t=>(t.title||"").toLowerCase().includes(query.toLowerCase())||(t.lastMessage||"").toLowerCase().includes(query.toLowerCase())).map(t=><button key={t.id} className={"thread-choice"+(selectedThread?.id===t.id?" active":"")} onClick={()=>openThread(t)}><span className="thread-avatar"><Users size={17}/></span><span><b>{t.title||"Conversation"}</b><small>{t.lastMessage||"No messages yet"}</small></span></button>)}{!threads.length?<div className="thread-empty">No conversations yet. Start one using a username above.</div>:null}</div><div className="conversation-view">{selectedThread?<><div className="conversation-title"><div><b>{selectedThread.title||"Conversation"}</b><small>{selectedThread.type==="group"?"Group conversation":"Direct conversation"}</small></div>{selectedThread.type==="direct"&&!activeCall?<div className="conversation-call-actions"><button type="button" className="toggle" onClick={()=>startCall("audio")}>Audio call</button><button type="button" className="toggle" onClick={()=>startCall("video")}>Video call</button></div>:null}</div><div className="message-stream">{messages.map(m=><div key={m.id} className={"message-line"+(m.senderId===user?.id?" mine":"")}><div className="message-bubble">{m.text}<small>{new Date(m.createdAt).toLocaleString()}</small></div></div>)}{!messages.length?<div className="thread-empty">Say hello to start this conversation.</div>:null}</div><form className="message-compose" onSubmit={sendMessage}><input aria-label="Message" placeholder="Write a message…" value={draft} onChange={e=>setDraft(e.target.value)} maxLength={4000}/><button className="btn-dark" disabled={!draft.trim()}>Send</button></form>{activeCall?<div className="call-stage"><div className="call-stage-heading"><b>{activeCall.mediaType==="video"?"Video call":"Audio call"}</b><span>{callStatus}</span><button type="button" className="toggle danger" onClick={()=>endCall(true)}>End call</button></div><div className="call-video-grid"><video ref={remoteCallVideoRef} autoPlay playsInline/><video ref={localCallVideoRef} autoPlay muted playsInline/></div>{callError?<p className="form-error">{callError}</p>:null}</div>:null}</>:<div className="conversation-placeholder"><div className="empty-icon"><MessageCircle/></div><b>Select a conversation</b><span>Your messages will appear here.</span></div>}</div></div>{connectError?<p className="form-error">{connectError}</p>:null}</section>:null}
    {active!=="connect"?<ModuleWorkspace active={active} user={user}/>:null}
    {user&&showSecurity?<section className="admin-card security-card"><div className="admin-head"><div><div className="eyebrow">ACCOUNT SECURITY</div><h2>Two-step verification</h2><p>Protect your independent SsibuChat account with an authenticator app.</p></div><button className="toggle" onClick={()=>{setShowSecurity(false);setMfaRecoveryCodes([]);}}>Close</button></div>
     <div className="tester-toggle"><div><b>Email verification</b><span>{user.emailVerified?"Verified":"Not verified"}</span></div>{user.emailVerified?<span className="toggle on">Verified</span>:<button className="toggle" onClick={requestEmailVerification}>Send verification email</button>}</div>

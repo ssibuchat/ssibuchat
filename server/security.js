@@ -42,10 +42,16 @@ export async function currentPrincipal(req, db) {
   const user = await db.collection("users").findOne({ _id: session.userId, status: "active" }, { projection: { passwordHash: 0 } });
   return user ? { user, session } : null;
 }
-export function safeText(value, max = 500) { return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max); }
+export function safeText(value, max = 500) { return String(value ?? "").replace(/[\\u0000-\\u001f\\u007f]/g, "").trim().slice(0, max); }
+/**
+ * Browser mutations must prove their origin. An absent Origin is not implicitly
+ * trusted: use Referer as a same-origin fallback for clients that omit Origin.
+ */
 export function isSameOrigin(req) {
-  const origin = req.headers?.origin; if (!origin) return true;
-  try { return Boolean(req.headers?.host && new URL(origin).host === req.headers.host); } catch { return false; }
+  const host = String(req.headers?.host || "").trim().toLowerCase();
+  const source = req.headers?.origin || req.headers?.referer;
+  if (!host || !source || source === "null") return false;
+  try { return new URL(source).host.toLowerCase() === host; } catch { return false; }
 }
 export function json(res, status, body) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(body)); }
 export async function readBody(req, maxBytes = 256000) {

@@ -233,3 +233,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Failure 1 was in the email-change test's confirmation-link token extraction (the test regex captured beyond the token); corrected to stop at whitespace.
 - Failure 2 was a stale Commerce product projection assertion after inventory defaults (`trackInventory: false`, `stockQuantity: 0`) were added; updated the assertion to match the intended server-side defaults.
 - Both corrections are committed. A new CI result for the corrected head has not yet been observed; email-change acceptance remains unverified until the full workflow passes.
+
+
+## Phase 1 / Commerce verification follow-up — 2026-11-18
+
+- CI run [44361477089](https://github.com/ssibuchat/ssibuchat/actions/runs/44361477089) executed 42 tests: 41 passed, 1 failed. The new email-change end-to-end integration test passed, including confirmation and previous-address notification.
+- The remaining failure was the Commerce projection test: the previous correction added inventory defaults to the input fixture rather than asserting the server-generated defaults in the expected projection. The assertion is now corrected so the input omits inventory fields and the expected result includes `trackInventory: false` and `stockQuantity: 0`.
+- Correction commit: `0878ae3528160c88f2850e51a6a2c6765dc0a651`. A full CI run for this exact head is still pending; no passing status is claimed for the corrected head.

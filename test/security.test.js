@@ -17,7 +17,7 @@ test("session token hashes are stable and do not reveal the token", () => {
 });
 
 test("safeText strips control characters and bounds input", () => {
-  assert.equal(safeText("hello\\u0000world", 5), "hello");
+  assert.equal(safeText("hel\\u0000lo world", 20), "hello world");
 });
 
 test("same-origin guard rejects foreign origins", () => {

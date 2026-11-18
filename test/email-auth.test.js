@@ -107,3 +107,33 @@ test("password change rejects short and unchanged passwords without revoking the
   assert.equal(same.status,400);
   assert.equal(db.sessions.length,1);
 });
+
+
+test("email change requires the current password, verifies the new address and alerts the old address",async()=>{
+  const db=makeDb(),originalFetch=globalThis.fetch,emails=[];
+  db.user.emailVerified=true;
+  db.user.passwordHash=await hashPassword("old-current-password");
+  globalThis.fetch=async(url,options)=>{emails.push(JSON.parse(options.body));return {ok:true,json:async()=>({id:"email-change-test"})};};
+  try{
+    const rejected=await invoke(db,db.sessionToken,"POST","/api/account/email/change/request",{newEmail:"new-address@example.test",currentPassword:"wrong-password"});
+    assert.equal(rejected.status,401);
+    const requested=await invoke(db,db.sessionToken,"POST","/api/account/email/change/request",{newEmail:"new-address@example.test",currentPassword:"old-current-password"});
+    assert.equal(requested.status,202);
+    assert.equal(emails.length,1);
+    assert.equal(emails[0].to[0],"new-address@example.test");
+    const tokenText=emails[0].text.match(/confirmEmailChange=([^\\s]+)/)?.[1];
+    const token=decodeURIComponent(tokenText);
+    const confirmed=await invoke(db,null,"POST","/api/auth/email/change/confirm",{token});
+    assert.equal(confirmed.status,200);
+    assert.equal(confirmed.body.emailChanged,true);
+    assert.equal(confirmed.body.email,"new-address@example.test");
+    assert.equal(confirmed.body.previousEmailNoticeSent,true);
+    assert.equal(db.user.email,"new-address@example.test");
+    assert.equal(db.user.emailVerified,true);
+    assert.equal(emails.length,2);
+    assert.equal(emails[1].to[0],"tester@example.test");
+    assert.ok(db.audits.some(event=>event.action==="account.email.change"));
+    const replay=await invoke(db,null,"POST","/api/auth/email/change/confirm",{token});
+    assert.equal(replay.status,400);
+  }finally{globalThis.fetch=originalFetch;}
+});

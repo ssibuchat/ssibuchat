@@ -132,6 +132,7 @@ export async function routeModules(req, res, db, principal, path) {
       if (fields.projectId && !(await ownedReference(db, "projects", fields.projectId, principal))) return json(res, 404, { ok: false, error: "project_not_found" });
       if (fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
     }
+    if (key === "events" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
     if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
     if (key === "orders") {
       const business = await ownedReference(db, "businesses", body.businessId, principal);
@@ -165,6 +166,7 @@ export async function routeModules(req, res, db, principal, path) {
       if (fields.projectId && !(await ownedReference(db, "projects", fields.projectId, principal))) return json(res, 404, { ok: false, error: "project_not_found" });
       if (fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
     }
+    if (key === "events" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
     if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
     const result = await collection.findOneAndUpdate({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id }, { $set: { ...fields, updatedAt: new Date() } }, { returnDocument: "after" });
     if (!result) return json(res, 404, { ok: false, error: "item_not_found" });

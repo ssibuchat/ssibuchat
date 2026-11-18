@@ -29,6 +29,7 @@ export async function route(req,res) {
   const path=new URL(req.url||"/","http://"+(req.headers?.host||"localhost")).pathname.replace(/\/+$/,"")||"/";
   if(req.method==="OPTIONS"){res.setHeader("Allow","GET,POST,PATCH,DELETE,OPTIONS");res.statusCode=204;return res.end();}
   if(req.method!=="GET" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
+  if((process.env.VERCEL || process.env.NODE_ENV === "production") && !process.env.SSIBUCHAT_SESSION_SECRET) return json(res,503,{ok:false,error:"session_secret_not_configured"});
   try {
     const db=await getDb(); await ensureIndexes(db);
     if(path==="/api/health" && req.method==="GET") return json(res,200,{ok:true,product:"ssibuchat",database:"connected",timestamp:now().toISOString()});
@@ -49,7 +50,7 @@ export async function route(req,res) {
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"auth.login");
       return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,role:user.role}});
     }
-    if(path==="/api/auth/logout"&&req.method==="POST"){const p=await currentPrincipal(req,db);if(p)await db.collection("sessions").deleteMany({userId:p.user._id});clearSessionCookie(res);return json(res,200,{ok:true});}
+    if(path==="/api/auth/logout"&&req.method==="POST"){const p=await currentPrincipal(req,db);if(p)await db.collection("sessions").deleteOne({_id:p.session._id});clearSessionCookie(res);return json(res,200,{ok:true});}
     const p=await getPrincipal(req,db);
     if(path==="/api/auth/me"&&req.method==="GET") return json(res,200,{ok:true,user:p?{id:String(p.user._id),username:p.user.username,displayName:p.user.displayName,role:p.user.role,accountType:p.user.accountType}:null});
     if(path.startsWith("/api/admin/")){

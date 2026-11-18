@@ -31,14 +31,15 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Persistent MongoDB-backed throttling for bootstrap, registration, login, thread starts, message sends, module writes and AI requests.
 - [x] Owner/tenant-scoped module record boundaries and indexes.
 - [ ] Complete tenant membership/role model, schema-versioned migrations and admin audit UI.
-- [ ] Account email verification, password recovery, passkeys and security notifications.
+- [x] Email verification request/confirm and password reset request/confirm with expiring single-use tokens, hashed token storage, verified-email eligibility and session invalidation.
+- [ ] Configure Resend credentials, sender domain and app URL in independent staging/production; verify deliverability and recovery UX. Passkeys and security notifications remain pending.
 - [x] Active-session inventory and revoke-other-sessions endpoint/UI.
 - [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification, per-account attempt throttling, TOTP replay prevention and disable/revocation flow.
 - [x] Account-facing MFA setup, confirmation, one-time recovery-code display, MFA disable and active-session inventory/revocation UI.
 - [x] MFA API integration tests for login challenge success, single-use challenges, recovery-code consumption, invalid codes and cross-challenge TOTP replay prevention.
 - [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
-- [x] GitHub Actions CI: latest workspace collaboration/migration run [44358121172](https://github.com/ssibuchat/ssibuchat/actions/runs/44358121172) passed npm ci, 34 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+- [x] GitHub Actions CI: latest identity/Work integration run [44359823249](https://github.com/ssibuchat/ssibuchat/actions/runs/44359823249) passed npm ci, 37 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
 - [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
 - [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.

@@ -158,3 +158,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added integration coverage for invite creation, approval-required join, pending request visibility and admin approval/member addition.
 - GitHub Actions run [44356028441](https://github.com/ssibuchat/ssibuchat/actions/runs/44356028441) passed: npm ci; 29 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
 - Group fine-grained member-role policy and history visibility remain pending. Vercel preview build currently reports an account build-rate-limit failure; no new preview or production deployment was created.
+
+
+## Phase 2 Connect moderation and message controls — 2026-11-18
+
+- Added per-user direct-conversation block/unblock list; both direct thread creation and direct message sending reject blocked pairs.
+- Added rate-limited reports for user, message and group targets; reports are visible to tenant admins and can be moved to reviewing/resolved/dismissed.
+- Added sender-only message editing, sender/group-admin soft deletion, allowlisted emoji reactions with per-user uniqueness, and participant-scoped message search with bounded query length/results.
+- Added indexes for block lists, moderation queues and message reactions.
+- Added API tests for block enforcement, report submission/admin review, edit/delete, reaction add/remove and participant-scoped search.
+- Latest CI run [44357042708](https://github.com/ssibuchat/ssibuchat/actions/runs/44357042708) passed: npm ci; 31 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Group-wide block behavior, moderation actions/appeals, binary attachments and malware scanning remain open.

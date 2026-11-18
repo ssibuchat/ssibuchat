@@ -136,3 +136,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added Connect API integration tests for accepted → delivered → read receipt progression, sender receipt inspection, group admin authorization, member addition, admin promotion and member removal.
 - GitHub Actions run [44354724227](https://github.com/ssibuchat/ssibuchat/actions/runs/44354724227) passed: npm ci; 25 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - Still outstanding in Connect: durable outbox fan-out worker/retry/dead-letter processing, provider sent/failed delivery states, push realtime/presence, notifications, moderation/report/block, attachments/scanning, search/edit/delete/reactions and E2EE.
+
+
+## Phase 2 Connect outbox worker increment — 2026-11-18
+
+- Added a lease-based outbox dispatcher that atomically claims events, fans message-accepted events into idempotent per-recipient delivery jobs, marks processed events, retries failures with exponential backoff, and dead-letters after ten attempts.
+- Added unique delivery-job and pending-outbox indexes.
+- Added an authenticated Vercel cron handler requiring CRON_SECRET and a bounded function configuration.
+- Added tests for per-recipient fan-out, event completion, retry/backoff, dead-lettering and cron bearer-secret/method validation.
+- Latest GitHub Actions run [44355344563](https://github.com/ssibuchat/ssibuchat/actions/runs/44355344563) passed: npm ci; 28 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Scheduler activation is intentionally not configured yet: Vercel Hobby supports daily cron cadence while Pro/Enterprise support per-minute execution; the actual project plan and CRON_SECRET must be verified before choosing a schedule. The endpoint and worker code are implemented, but automated scheduled delivery is not yet live.
+- Delivery jobs are queued only. No SMS/push/email provider dispatch or sent/failed delivery state is claimed.

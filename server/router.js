@@ -27,8 +27,9 @@ async function bootstrap(req, res, db, body) {
   if (await db.collection("users").countDocuments({ role:"admin" })) return json(res, 409, { ok:false, error:"admin_already_bootstrapped" });
   const email=emailNorm(body.email), password=String(body.password||""), username=usernameNorm(body.username || email.split("@")[0]);
   if (!email.includes("@") || password.length<12) return json(res,400,{ok:false,error:"valid_email_and_12_character_password_required"});
-  const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(body.displayName||"SsibuChat Admin",80),passwordHash:await hashPassword(password),role:"admin",accountType:"standard",status:"active",tenantId:"global",createdAt:now(),updatedAt:now()};
+  const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(body.displayName||"SsibuChat Admin",80),passwordHash:await hashPassword(password),role:"admin",accountType:"standard",status:"active",tenantId:"global",schemaVersion:1,createdAt:now(),updatedAt:now()};
   const result=await db.collection("users").insertOne(user); user._id=result.insertedId;
+  await db.collection("memberships").updateOne({tenantId:user.tenantId,userId:user._id},{$setOnInsert:{tenantId:user.tenantId,userId:user._id,role:"admin",status:"active",createdAt:now()}},{upsert:true});
   const token=await createSession(db,user); setSessionCookie(res,token); await audit(db,user,"admin.bootstrap");
   return json(res,201,{ok:true,user:{id:String(user._id),email:user.email,role:user.role}});
 }
@@ -49,8 +50,9 @@ export async function route(req,res,database = null) {
       const throttle = await consumeRateLimit(db, "register", ip, 8, 60 * 60 * 1000);
       if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       if(!email.includes("@")||!username||!/^[a-z0-9_.-]{3,32}$/.test(username)||password.length<12) return json(res,400,{ok:false,error:"valid_email_username_and_12_character_password_required"});
-      const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"standard",status:"active",tenantId:"global",createdAt:now(),updatedAt:now()};
+      const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"standard",status:"active",tenantId:"global",schemaVersion:1,createdAt:now(),updatedAt:now()};
       try{const r=await db.collection("users").insertOne(user);user._id=r.insertedId;}catch{return json(res,409,{ok:false,error:"email_or_username_unavailable"});}
+      await db.collection("memberships").updateOne({tenantId:user.tenantId,userId:user._id},{$setOnInsert:{tenantId:user.tenantId,userId:user._id,role:"member",status:"active",createdAt:now()}},{upsert:true});
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"account.register");
       return json(res,201,{ok:true,user:{id:String(user._id),username,displayName:user.displayName}});
     }
@@ -174,8 +176,8 @@ export async function route(req,res,database = null) {
       if(path==="/api/admin/testers"&&req.method==="POST"){
         const b=await readBody(req),username=usernameNorm(b.username),password=String(b.password||"");
         if(!/^[a-z0-9_.-]{3,32}$/.test(username)||password.length<12)return json(res,400,{ok:false,error:"valid_username_and_12_character_password_required"});
-        const user={username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"tester",status:"active",tenantId:"testers",createdAt:now(),updatedAt:now()};
-        try{const r=await db.collection("users").insertOne(user);await audit(db,p.user,"tester.create",String(r.insertedId));return json(res,201,{ok:true,id:String(r.insertedId)});}catch{return json(res,409,{ok:false,error:"username_unavailable"});}
+        const user={username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"tester",status:"active",tenantId:"testers",schemaVersion:1,createdAt:now(),updatedAt:now()};
+        try{const r=await db.collection("users").insertOne(user);await db.collection("memberships").updateOne({tenantId:user.tenantId,userId:r.insertedId},{$setOnInsert:{tenantId:user.tenantId,userId:r.insertedId,role:"member",status:"active",createdAt:now()}},{upsert:true});await audit(db,p.user,"tester.create",String(r.insertedId));return json(res,201,{ok:true,id:String(r.insertedId)});}catch{return json(res,409,{ok:false,error:"username_unavailable"});}
       }
       if(path==="/api/admin/testers/access"&&req.method==="PATCH"){
         const b=await readBody(req);if(typeof b.enabled!=="boolean")return json(res,400,{ok:false,error:"enabled_boolean_required"});

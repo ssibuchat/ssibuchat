@@ -11,7 +11,7 @@ function makeDb(){
   const product={_id:productId,tenantId:"tenant-1",ownerId:merchantId,businessId:String(businessId),name:"Coffee",description:"",priceMinor:2500,currency:"UGX",status:"active",trackInventory:true,stockQuantity:5};
   const orders=[],intents=[],limits=new Map();
   const collections={
-    businesses:{findOne:async filter=>String(filter._id)===String(businessId)&&filter.tenantId==="tenant-1"?business:null},
+    businesses:{findOne:async filter=>String(filter._id)===String(businessId)&&filter.tenantId==="tenant-1"?business:null,find:filter=>cursor([business].filter(row=>row.tenantId===filter.tenantId))},
     products:{
       findOne:async filter=>String(filter._id)===String(productId)&&filter.tenantId==="tenant-1"&&(!filter.ownerId||String(filter.ownerId)===String(product.ownerId))&&(!filter.status||product.status===filter.status)?product:null,
       find:filter=>cursor([product].filter(row=>row.tenantId===filter.tenantId&&String(row.businessId)===String(filter.businessId)&&row.status===filter.status)),
@@ -26,6 +26,7 @@ function makeDb(){
     paymentIntents:{
       insertOne:async row=>{row._id=new ObjectId();intents.push(row);return {insertedId:row._id};},
       findOne:async filter=>intents.find(row=>(!filter.orderId||String(row.orderId)===String(filter.orderId))&&row.tenantId===filter.tenantId&&(!filter.status?.$in||filter.status.$in.includes(row.status))&&(!filter._id||String(row._id)===String(filter._id))&&(!filter.buyerId||String(row.buyerId)===String(filter.buyerId))&&(!filter.status||filter.status===row.status))||null,
+      find:filter=>cursor(intents.filter(row=>row.tenantId===filter.tenantId&&filter.orderId.$in.some(id=>String(id)===String(row.orderId)))),
       updateOne:async(filter,update)=>{const row=intents.find(item=>String(item._id)===String(filter._id)&&(!filter.status||item.status===filter.status));if(!row)return {modifiedCount:0};Object.assign(row,update.$set);return {modifiedCount:1};}
     },
     rateLimits:{findOneAndUpdate:async filter=>{const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};}}
@@ -43,6 +44,10 @@ async function invoke(db,user,method,path,body={}){
 test("buyer/merchant order separation, inventory reservation and sandbox payment lifecycle",async()=>{
   const db=makeDb(),buyer={_id:db.buyerId,tenantId:"tenant-1"},merchant={_id:db.merchantId,tenantId:"tenant-1"};
   const body={businessId:String(db.businessId),idempotencyKey:"commerce-order-idempotency-0001",items:[{productId:String(db.productId),quantity:2}]};
+  const storefronts=await invoke(db,buyer,"GET","/api/commerce/storefronts");
+  assert.equal(storefronts.body.storefronts.length,1);
+  const catalog=await invoke(db,buyer,"GET","/api/commerce/storefronts?businessId="+db.businessId);
+  assert.equal(catalog.body.products[0].name,"Coffee");
   const created=await invoke(db,buyer,"POST","/api/commerce/orders",body);
   assert.equal(created.status,201);
   assert.equal(created.body.order.totalMinor,5000);

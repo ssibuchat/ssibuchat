@@ -72,9 +72,9 @@ export async function route(req,res) {
     if(path==="/api/people"&&req.method==="GET"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       const u=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
-      const q=usernameNorm(u.searchParams.get("q")||"");
+      const q=safeText(u.searchParams.get("q")||"",32).toLowerCase().replace(/[^a-z0-9]/g,"");
       if(q.length<2)return json(res,200,{ok:true,people:[]});
-      const rows=await db.collection("users").find({tenantId:p.user.tenantId,status:"active",discoverable:{$ne:false},_id:{$ne:p.user._id},$or:[{usernameNormalized:{$regex:"^"+q.replace(/[.*+?^${}()|[\]\\]/g,"\\    if(path==="/api/threads"&&req.method==="GET"){")}},{displayName:{$regex:q.replace(/[.*+?^${}()|[\]\\]/g,"\\    if(path==="/api/threads"&&req.method==="GET"){"),$options:"i"}}]},{projection:{passwordHash:0,email:0,emailNormalized:0}}).limit(12).toArray();
+      const rows=await db.collection("users").find({tenantId:p.user.tenantId,status:"active",discoverable:{$ne:false},_id:{$ne:p.user._id},usernameNormalized:{$regex:"^"+q}},{projection:{passwordHash:0,email:0,emailNormalized:0}}).limit(12).toArray();
       return json(res,200,{ok:true,people:rows.map(u=>({id:String(u._id),username:u.username,displayName:u.displayName}))});
     }
     if(path==="/api/threads"&&req.method==="POST"){

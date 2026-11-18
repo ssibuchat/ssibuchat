@@ -19,8 +19,8 @@ This roadmap is the complete delivery register. A phase is not complete because 
 - [ ] Accessibility and responsive design baseline (WCAG 2.2 AA target).
 
 ## Phase 2 — Secure Connect core
-- [ ] Direct and group messaging with object-level authorization.
-- [ ] Idempotent message writes and per-recipient delivery/read receipts.
+- [x] Initial direct/group thread creation APIs, tenant-scoped username discovery, thread listing/history, and participant-authorized message submission; full delivery semantics and group UI remain pending.
+- [x] Sender- and tenant-scoped idempotent message writes.\n- [ ] Per-recipient delivery/read receipts, reliable fan-out, retries and dead-letter handling.
 - [ ] Reliable group fan-out, bounded retries and dead-letter handling.
 - [ ] Push-based realtime with cursor sync and polling fallback.
 - [ ] Contacts, username discovery, privacy, block/report and moderation.

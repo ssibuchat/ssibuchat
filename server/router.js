@@ -133,7 +133,7 @@ export async function route(req,res,database = null) {
       const existing=await db.collection("users").findOne({emailNormalized:newEmail});
       if(existing)return json(res,409,{ok:false,error:"email_unavailable"});
       const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+60*60*1000);
-      const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_change",newEmail,tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
+      const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_change",newEmail,previousEmail:p.user.email||null,tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
       try{
         const sent=await sendTransactionalEmail({to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+process.env.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
         if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
@@ -178,8 +178,9 @@ export async function route(req,res,database = null) {
         if(changed.matchedCount!==1)return json(res,404,{ok:false,error:"account_not_found"});
       }catch(error){if(error?.code===11000)return json(res,409,{ok:false,error:"email_unavailable"});throw error;}
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.email.change");
-      const previous=await db.collection("users").findOne({_id:record.userId},{projection:{email:1}});
-      return json(res,200,{ok:true,emailChanged:true,email:previous?.email||record.newEmail});
+      let previousEmailNoticeSent=false;
+      if(record.previousEmail){try{const notice=await sendTransactionalEmail({to:record.previousEmail,subject:"Your SsibuChat email address was changed",text:"The email address for your independent SsibuChat account was changed. If you did not make this change, use account recovery and contact SsibuChat support."});previousEmailNoticeSent=notice.configured===true;}catch{previousEmailNoticeSent=false;}}
+      return json(res,200,{ok:true,emailChanged:true,email:record.newEmail,previousEmailNoticeSent});
     }
     if(path==="/api/auth/password-reset/request"&&req.method==="POST"){
       const b=await readBody(req),email=String(b.email||"").trim().toLowerCase();

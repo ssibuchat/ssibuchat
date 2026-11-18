@@ -21,7 +21,11 @@ export async function ensureIndexes(db) {
     db.collection("messages").createIndex({ tenantId: 1, threadId: 1, createdAt: -1 }),
     db.collection("messages").createIndex({ tenantId: 1, senderId: 1, idempotencyKey: 1 }, { unique: true, sparse: true }),
     db.collection("memberships").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
-    db.collection("auditEvents").createIndex({ tenantId: 1, createdAt: -1 })
+    db.collection("auditEvents").createIndex({ tenantId: 1, createdAt: -1 }),
+    ...["workspaces","projects","tasks","calendarEvents","businesses","products","orders","financeRecords","mediaAssets"].map(name => db.collection(name).createIndex({ tenantId: 1, ownerId: 1, updatedAt: -1 })),
+    db.collection("workspacePreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
+    db.collection("aiPreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
+    db.collection("aiConversations").createIndex({ tenantId: 1, userId: 1, createdAt: -1 })
   ]).catch((error) => { indexesPromise = null; throw error; });
   await indexesPromise;
 }

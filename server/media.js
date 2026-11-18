@@ -1,4 +1,5 @@
-import { ObjectId, randomBytes } from "mongodb";
+import { ObjectId } from "mongodb";
+import { randomBytes } from "node:crypto";
 import { json, readBody, safeText } from "./security.js";
 import { consumeRateLimit } from "./rate-limit.js";
 import { presignS3, s3StorageConfigured } from "./s3-signing.js";

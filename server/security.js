@@ -1,9 +1,9 @@
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 const scrypt = promisify(scryptCallback);
 const COOKIE = "ssibu_session";
 const DAY = 86400000;
-export const hashToken = (value) => createHash("sha256").update(String(value)).digest("hex");
+export const hashToken = (value) => createHmac("sha256", process.env.SSIBUCHAT_SESSION_SECRET || "development-only-session-secret").update(String(value)).digest("hex");
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const derived = await scrypt(String(password), salt, 64);

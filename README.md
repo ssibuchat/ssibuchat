@@ -48,7 +48,7 @@ Payments, wallet custody, shared cross-user workspaces, binary media storage, E2
 - MongoDB connection string for API-backed features
 
 ```bash
-npm install
+npm ci
 cp .env.example .env
 npm run dev
 ```

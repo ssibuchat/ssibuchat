@@ -2,6 +2,7 @@ import { getDb, ensureIndexes } from "./db.js";
 import { clearSessionCookie, createSession, currentPrincipal, hashPassword, isSameOrigin, json, readBody, safeText, setSessionCookie, verifyPassword } from "./security.js";
 import { ObjectId } from "mongodb";
 import { routeModules } from "./modules.js";
+import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
 const usernameNorm = (v) => safeText(v, 32).replace(/^@/, "").toLowerCase();
@@ -15,6 +16,9 @@ async function getPrincipal(req, db) {
 }
 async function bootstrap(req, res, db, body) {
   const secret = process.env.SSIBUCHAT_BOOTSTRAP_SECRET;
+  const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+  const throttle = await consumeRateLimit(db, "bootstrap", ip, 3, 60 * 60 * 1000);
+  if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
   if (!secret || !process.env.SSIBUCHAT_SESSION_SECRET || !body.secret || body.secret !== secret) return json(res, 403, { ok:false, error:"bootstrap_not_authorized" });
   if (await db.collection("users").countDocuments({ role:"admin" })) return json(res, 409, { ok:false, error:"admin_already_bootstrapped" });
   const email=emailNorm(body.email), password=String(body.password||""), username=usernameNorm(body.username || email.split("@")[0]);
@@ -37,6 +41,9 @@ export async function route(req,res) {
     if(path==="/api/auth/bootstrap" && req.method==="POST") return await bootstrap(req,res,db,await readBody(req));
     if(path==="/api/auth/register" && req.method==="POST"){
       const b=await readBody(req), email=emailNorm(b.email), username=usernameNorm(b.username), password=String(b.password||"");
+      const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+      const throttle = await consumeRateLimit(db, "register", ip, 8, 60 * 60 * 1000);
+      if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       if(!email.includes("@")||!username||!/^[a-z0-9_.-]{3,32}$/.test(username)||password.length<12) return json(res,400,{ok:false,error:"valid_email_username_and_12_character_password_required"});
       const user={email,emailNormalized:email,username,usernameNormalized:username,displayName:safeText(b.displayName||username,80),passwordHash:await hashPassword(password),role:"member",accountType:"standard",status:"active",tenantId:"global",createdAt:now(),updatedAt:now()};
       try{const r=await db.collection("users").insertOne(user);user._id=r.insertedId;}catch{return json(res,409,{ok:false,error:"email_or_username_unavailable"});}
@@ -45,6 +52,9 @@ export async function route(req,res) {
     }
     if(path==="/api/auth/login" && req.method==="POST"){
       const b=await readBody(req), login=safeText(b.login,254).toLowerCase();
+      const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+      const throttle = await consumeRateLimit(db, "login", login + "|" + ip, 10, 15 * 60 * 1000);
+      if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       const user=await db.collection("users").findOne({$or:[{emailNormalized:login},{usernameNormalized:usernameNorm(login)}]});
       if(!user||user.status!=="active"||!(await verifyPassword(b.password||"",user.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
       if(isTester(user)&&!(await policy(db)).enabled) return json(res,403,{ok:false,error:"tester_access_disabled"});

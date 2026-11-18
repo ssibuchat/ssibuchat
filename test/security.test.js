@@ -24,3 +24,12 @@ test("same-origin guard rejects foreign origins", () => {
   assert.equal(isSameOrigin({ headers: { origin: "https://evil.example", host: "ssibuchat.example" } }), false);
   assert.equal(isSameOrigin({ headers: { origin: "https://ssibuchat.example", host: "ssibuchat.example" } }), true);
 });
+
+test("same-origin guard uses a same-origin Referer when Origin is omitted", () => {
+  assert.equal(isSameOrigin({ headers: { referer: "https://ssibuchat.example/account", host: "ssibuchat.example" } }), true);
+});
+
+test("same-origin guard rejects missing or opaque browser origin metadata", () => {
+  assert.equal(isSameOrigin({ headers: { host: "ssibuchat.example" } }), false);
+  assert.equal(isSameOrigin({ headers: { origin: "null", host: "ssibuchat.example" } }), false);
+});

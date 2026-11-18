@@ -21,7 +21,7 @@ function makeDb() {
   ];
   const threadId = new ObjectId();
   const thread = { _id:threadId, tenantId:"tenant-1", type:"group", title:"Project team", participantIds:[users[0]._id,users[1]._id], createdBy:users[0]._id, adminIds:[users[0]._id], messageCount:0, createdAt:new Date(), updatedAt:new Date() };
-  const messages=[], receipts=[], outbox=[], audits=[], invites=[], joinRequests=[], limits=new Map();
+  const messages=[], receipts=[], outbox=[], audits=[], invites=[], joinRequests=[], blocks=[], reports=[], limits=new Map();
   const collections = {
     users: {
       findOne: async filter => users.find(user =>
@@ -63,6 +63,20 @@ function makeDb() {
         (!filter.senderId?.$ne||String(message.senderId)!==String(filter.senderId.$ne))&&
         (!filter._id?.$lte||String(message._id)<=String(filter._id.$lte))
       ))
+    },
+    blocks: {
+      findOne: async filter => blocks.find(row=>row.tenantId===filter.tenantId&&(
+        filter.$or?filter.$or.some(pair=>String(row.userId)===String(pair.userId)&&String(row.blockedUserId)===String(pair.blockedUserId)):
+        String(row.userId)===String(filter.userId)&&String(row.blockedUserId)===String(filter.blockedUserId)
+      ))||null,
+      find: filter => cursor(blocks.filter(row=>row.tenantId===filter.tenantId&&String(row.userId)===String(filter.userId))),
+      insertOne: async row => {row._id=new ObjectId();blocks.push(row);return {insertedId:row._id};},
+      deleteOne: async filter => {const index=blocks.findIndex(row=>row.tenantId===filter.tenantId&&String(row.userId)===String(filter.userId)&&String(row.blockedUserId)===String(filter.blockedUserId));if(index<0)return {deletedCount:0};blocks.splice(index,1);return {deletedCount:1};}
+    },
+    reports: {
+      insertOne: async row => {row._id=new ObjectId();reports.push(row);return {insertedId:row._id};},
+      find: filter => cursor(reports.filter(row=>row.tenantId===filter.tenantId)),
+      updateOne: async (filter,update) => {const row=reports.find(item=>String(item._id)===String(filter._id)&&item.tenantId===filter.tenantId);if(!row)return {matchedCount:0};Object.assign(row,update.$set);return {matchedCount:1};}
     },
     groupInvites: {
       insertOne: async invite => {invite._id=new ObjectId();invites.push(invite);return {insertedId:invite._id};},
@@ -119,7 +133,7 @@ function makeDb() {
     auditEvents: { insertOne: async event => {audits.push(event);return {insertedId:new ObjectId()};} }
   };
   function cursor(items){return {sort(){return this;},limit(){return this;},toArray:async()=>items};}
-  return { users, sessions, thread, messages, receipts, invites, joinRequests, senderToken, recipientToken, thirdToken, threadId, collection:name=>collections[name] };
+  return { users, sessions, thread, messages, receipts, invites, joinRequests, blocks, reports, senderToken, recipientToken, thirdToken, threadId, collection:name=>collections[name] };
 }
 async function invoke(db, token, method, url, body={}) {
   const headers={};
@@ -178,4 +192,29 @@ test("group invite token requires approval and admin approval joins the member",
   assert.equal(approved.status,200);
   assert.equal(db.thread.participantIds.some(id=>String(id)===String(db.users[2]._id)),true);
   assert.equal(db.invites[0].uses,1);
+});
+
+test("block controls prevent direct conversations and reports enter admin review",async()=>{
+  const db=makeDb();
+  const blocked=await invoke(db,db.senderToken,"POST","/api/people/blocked",{username:"bob"});
+  assert.equal(blocked.status,200);
+  assert.equal(db.blocks.length,1);
+  const direct=await invoke(db,db.senderToken,"POST","/api/threads",{participants:["bob"]});
+  assert.equal(direct.status,403);
+  assert.equal(direct.body.error,"conversation_blocked");
+  const list=await invoke(db,db.senderToken,"GET","/api/people/blocked");
+  assert.equal(list.status,200);
+  assert.equal(list.body.blocked[0].username,"bob");
+  const unblocked=await invoke(db,db.senderToken,"DELETE","/api/people/blocked/"+db.users[1]._id);
+  assert.equal(unblocked.status,200);
+  assert.equal(db.blocks.length,0);
+  const report=await invoke(db,db.senderToken,"POST","/api/reports",{targetType:"user",targetId:String(db.users[1]._id),reason:"Harassment"});
+  assert.equal(report.status,201);
+  db.users[0].role="admin";
+  const queue=await invoke(db,db.senderToken,"GET","/api/admin/reports");
+  assert.equal(queue.status,200);
+  assert.equal(queue.body.reports.length,1);
+  const reviewed=await invoke(db,db.senderToken,"PATCH","/api/admin/reports/"+report.body.reportId,{status:"resolved"});
+  assert.equal(reviewed.status,200);
+  assert.equal(db.reports[0].status,"resolved");
 });

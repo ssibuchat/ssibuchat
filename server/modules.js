@@ -145,6 +145,12 @@ export async function routeModules(req, res, db, principal, path) {
   if (req.method === "PATCH" && id) {
     if (key === "orders" || key === "finance") return json(res, 403, { ok: false, error: "financial_records_are_immutable" });
     const fields = projectInput(key, await readBody(req));
+    if (key === "projects" && fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    if (key === "tasks") {
+      if (fields.projectId && !(await ownedReference(db, "projects", fields.projectId, principal))) return json(res, 404, { ok: false, error: "project_not_found" });
+      if (fields.workspaceId && !(await ownedReference(db, "workspaces", fields.workspaceId, principal))) return json(res, 404, { ok: false, error: "workspace_not_found" });
+    }
+    if (key === "products" && fields.businessId && !(await ownedReference(db, "businesses", fields.businessId, principal))) return json(res, 404, { ok: false, error: "business_not_found" });
     const result = await collection.findOneAndUpdate({ _id: new ObjectId(id), tenantId: principal.tenantId, ownerId: principal._id }, { $set: { ...fields, updatedAt: new Date() } }, { returnDocument: "after" });
     if (!result) return json(res, 404, { ok: false, error: "item_not_found" });
     return json(res, 200, { ok: true, item: serialize(result) });

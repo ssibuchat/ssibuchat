@@ -49,6 +49,8 @@ test("buyer/merchant order separation, inventory reservation and sandbox payment
   assert.equal(db.product.stockQuantity,5);
   const replay=await invoke(db,buyer,"POST","/api/commerce/orders",body);
   assert.equal(replay.status,200);assert.equal(replay.body.idempotent,true);
+  const collision=await invoke(db,buyer,"POST","/api/commerce/orders",{...body,items:[{productId:String(db.productId),quantity:1}]});
+  assert.equal(collision.status,409);
   const buyerOrders=await invoke(db,buyer,"GET","/api/commerce/orders");
   const merchantOrders=await invoke(db,merchant,"GET","/api/commerce/orders");
   assert.equal(buyerOrders.body.orders.length,1);assert.equal(merchantOrders.body.orders.length,1);

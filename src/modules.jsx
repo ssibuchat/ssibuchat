@@ -39,6 +39,11 @@ export default function ModuleWorkspace({ active, user }) {
   const [documentTitle, setDocumentTitle] = useState("");
   const [documentContent, setDocumentContent] = useState("");
   const [activeDocument, setActiveDocument] = useState(null);
+  const [ledgerAccounts, setLedgerAccounts] = useState([]);
+  const [ledgerJournals, setLedgerJournals] = useState([]);
+  const [trialBalance, setTrialBalance] = useState([]);
+  const [ledgerAccountForm, setLedgerAccountForm] = useState({code:"",name:"",type:"asset",currency:"UGX"});
+  const [ledgerJournalForm, setLedgerJournalForm] = useState({debitAccountId:"",creditAccountId:"",amountMinor:"",memo:""});
 
   useEffect(() => {
     if (active === "work") setResource("tasks");
@@ -75,6 +80,10 @@ export default function ModuleWorkspace({ active, user }) {
     if (!user || active !== "ai") return;
     api("/api/ai/consent").then(d => setConsent(d.enabled === true)).catch(e => setError(e.message));
   }, [active, user?.id]);
+  useEffect(() => {
+    if (!user || active !== "finance") return;
+    refreshLedger().catch(e=>setError(e.message));
+  }, [active,user?.id]);
 
   function set(name, value) { setForm(current => ({ ...current, [name]: value })); }
   async function refresh() {
@@ -92,6 +101,34 @@ export default function ModuleWorkspace({ active, user }) {
       const saved = await api("/api/modules/" + resource, { method: "POST", body: JSON.stringify(body) });
       setForm({}); await refresh(); if (resource === "workspaces" && saved.item?.id) setSelectedWorkspace(saved.item.id); setMessage("Saved.");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function refreshLedger() {
+    const [accounts,journals,balance]=await Promise.all([
+      api("/api/finance/ledger/accounts"),
+      api("/api/finance/ledger/journals"),
+      api("/api/finance/ledger/trial-balance")
+    ]);
+    setLedgerAccounts(accounts.accounts||[]);setLedgerJournals(journals.journals||[]);setTrialBalance(balance.accounts||[]);
+  }
+  async function createLedgerAccount(e) {
+    e.preventDefault();setBusy(true);setError("");setMessage("");
+    try { await api("/api/finance/ledger/accounts",{method:"POST",body:JSON.stringify(ledgerAccountForm)});setLedgerAccountForm({code:"",name:"",type:"asset",currency:"UGX"});await refreshLedger();setMessage("Ledger account created."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function postLedgerJournal(e) {
+    e.preventDefault();setBusy(true);setError("");setMessage("");
+    try {
+      const debit=ledgerAccounts.find(account=>account.id===ledgerJournalForm.debitAccountId);
+      const credit=ledgerAccounts.find(account=>account.id===ledgerJournalForm.creditAccountId);
+      if(!debit||!credit)throw new Error("select_two_accounts");
+      await api("/api/finance/ledger/journals",{method:"POST",body:JSON.stringify({currency:debit.currency,memo:ledgerJournalForm.memo,idempotencyKey:crypto.randomUUID(),entries:[{accountId:debit.id,debitMinor:Number(ledgerJournalForm.amountMinor),creditMinor:0},{accountId:credit.id,debitMinor:0,creditMinor:Number(ledgerJournalForm.amountMinor)}]})});
+      setLedgerJournalForm({debitAccountId:"",creditAccountId:"",amountMinor:"",memo:""});await refreshLedger();setMessage("Balanced journal posted.");
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function reverseLedgerJournal(id) {
+    setBusy(true);setError("");setMessage("");
+    try { await api("/api/finance/ledger/journals/"+id+"/reverse",{method:"POST",body:"{}"});await refreshLedger();setMessage("Reversal journal posted."); }
+    catch(e){setError(e.message);}finally{setBusy(false);}
   }
   async function refreshWorkspace() {
     if (!selectedWorkspace) return;
@@ -171,6 +208,15 @@ export default function ModuleWorkspace({ active, user }) {
         </div>
       </> : <p className="module-muted">Create a workspace above to invite members and collaborate on shared documents.</p>}
     </div> : null}
+    {active==="finance"?<div className="ledger-panel">
+      <div className="module-heading"><div><div className="eyebrow">DOUBLE-ENTRY LEDGER</div><h3>Accounts and journals</h3><p>Every posted journal balances debits and credits. Posted entries are immutable; corrections use reversal journals.</p></div></div>
+      <div className="ledger-grid">
+        <form className="ledger-card" onSubmit={createLedgerAccount}><h4>Create account</h4><Field label="Account code" value={ledgerAccountForm.code} onChange={v=>setLedgerAccountForm({...ledgerAccountForm,code:v.toUpperCase()})} required/><Field label="Account name" value={ledgerAccountForm.name} onChange={v=>setLedgerAccountForm({...ledgerAccountForm,name:v})} required/><label className="module-field">Type<select value={ledgerAccountForm.type} onChange={e=>setLedgerAccountForm({...ledgerAccountForm,type:e.target.value})}><option value="asset">Asset</option><option value="liability">Liability</option><option value="equity">Equity</option><option value="income">Income</option><option value="expense">Expense</option></select></label><Field label="Currency" value={ledgerAccountForm.currency} onChange={v=>setLedgerAccountForm({...ledgerAccountForm,currency:v.toUpperCase()})} required/><button className="btn-dark" disabled={busy}>Create account</button></form>
+        <form className="ledger-card" onSubmit={postLedgerJournal}><h4>Post balanced journal</h4><label className="module-field">Debit account<select value={ledgerJournalForm.debitAccountId} onChange={e=>setLedgerJournalForm({...ledgerJournalForm,debitAccountId:e.target.value})} required><option value="">Select account</option>{ledgerAccounts.map(account=><option key={account.id} value={account.id}>{account.code} · {account.name} ({account.currency})</option>)}</select></label><label className="module-field">Credit account<select value={ledgerJournalForm.creditAccountId} onChange={e=>setLedgerJournalForm({...ledgerJournalForm,creditAccountId:e.target.value})} required><option value="">Select account</option>{ledgerAccounts.map(account=><option key={account.id} value={account.id}>{account.code} · {account.name} ({account.currency})</option>)}</select></label><Field label="Amount (minor units)" type="number" value={ledgerJournalForm.amountMinor} onChange={v=>setLedgerJournalForm({...ledgerJournalForm,amountMinor:v})} required/><Field label="Memo" value={ledgerJournalForm.memo} onChange={v=>setLedgerJournalForm({...ledgerJournalForm,memo:v})} required/><button className="btn-dark" disabled={busy||ledgerAccounts.length<2}>Post journal</button></form>
+      </div>
+      <div className="ledger-card"><h4>Trial balance</h4>{trialBalance.length?trialBalance.map(row=><div className="ledger-row" key={row.accountId}><span><b>{row.code} · {row.name}</b><small>{row.currency}</small></span><strong>{row.netMinor.toLocaleString()}</strong></div>):<p className="module-muted">No posted journals yet.</p>}</div>
+      <div className="ledger-card"><h4>Posted journals</h4>{ledgerJournals.length?ledgerJournals.map(journal=><div className="ledger-row" key={journal.id}><span><b>{journal.memo}</b><small>{journal.currency} {journal.totalMinor.toLocaleString()} · {new Date(journal.createdAt).toLocaleString()}</small></span>{journal.reversalOf?<em>Reversal</em>:<button type="button" className="toggle" onClick={()=>reverseLedgerJournal(journal.id)} disabled={busy}>Reverse</button>}</div>):<p className="module-muted">No journals posted yet.</p>}</div>
+    </div>:null}
     {active === "work" ? <div className="workspace-preferences"><b>Dashboard preferences</b><select value={prefs.layout} onChange={e=>savePrefs({...prefs,layout:e.target.value})}><option value="comfortable">Comfortable layout</option><option value="compact">Compact layout</option></select><label><input type="checkbox" checked={prefs.contextualPanels} onChange={e=>savePrefs({...prefs,contextualPanels:e.target.checked})}/> Contextual panels</label></div> : null}
     <form className="module-form" onSubmit={create}>
       {resource === "workspaces" ? <><Field label="Workspace name" value={form.name||""} onChange={v=>set("name",v)} required/><Field label="Description" value={form.description||""} onChange={v=>set("description",v)}/></> : null}

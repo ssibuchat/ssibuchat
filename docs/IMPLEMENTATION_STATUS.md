@@ -59,3 +59,13 @@ Branch: `implementation/superapp-foundations`.
 - Added security, architecture and operations documentation.
 
 This branch is under review and must pass the repository's complete CI workflow and security review before merge. Provider-dependent capabilities and the production gates listed above remain incomplete.
+
+
+## Follow-on hardening and interface work
+
+- Added persistent MongoDB-backed rate limits for admin bootstrap, registration and login.
+- Added responsive authenticated pillar workspaces for Work, Commerce, Finance, Media and AI.
+- Added record identifiers to the UI so owner-scoped records can be linked between projects, products and orders.
+- Latest fully validated CI head before the final UI identifier adjustment: `bfc81f4d5279aedc41b240d0dab5b2842432bba0`. GitHub Actions: 14 tests passed, Vite build passed, production dependency audit found 0 vulnerabilities.
+- Full npm audit still reports 4 high-severity findings in development/build dependencies through picomatch <=4.0.7. The published upstream advisory currently has no patched version; these are not production runtime dependencies. Recheck before each release.
+- The latest UI identifier adjustment is committed separately and its CI run must complete before merge.

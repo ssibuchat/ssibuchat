@@ -3,7 +3,7 @@ import { clearSessionCookie, constantTimeEqual, createSession, currentPrincipal,
 import { ObjectId } from "mongodb";
 import { randomBytes } from "node:crypto";
 import { hashToken } from "./security.js";
-import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp, createRecoveryCodes } from "./mfa.js";
+import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp, matchTotpStep, createRecoveryCodes } from "./mfa.js";
 import { routeModules } from "./modules.js";
 import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
@@ -82,8 +82,8 @@ export async function route(req,res,database = null) {
       if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       const user = await db.collection("users").findOne({ _id:challenge.userId, status:"active", mfaEnabled:true });
       if (!user) return json(res, 401, { ok:false, error:"invalid_or_expired_mfa_challenge" });
-      let valid = false, recoveryHash = null;
-      try { valid = verifyTotp(decryptMfaSecret(user.mfaSecretEncrypted), code); } catch { valid = false; }
+      let valid = false, recoveryHash = null, matchedStep = null;
+      try { matchedStep = matchTotpStep(decryptMfaSecret(user.mfaSecretEncrypted), code); valid = matchedStep !== null; } catch { valid = false; }
       if (!valid) {
         recoveryHash = hashRecoveryCode(code);
         valid = Array.isArray(user.recoveryCodeHashes) && user.recoveryCodeHashes.includes(recoveryHash);
@@ -91,6 +91,10 @@ export async function route(req,res,database = null) {
       if (!valid) return json(res, 401, { ok:false, error:"invalid_mfa_code" });
       const claimed = await db.collection("mfaChallenges").updateOne({ _id:challenge._id, usedAt:null, expiresAt:{$gt:now()} }, { $set:{ usedAt:now() } });
       if (claimed.modifiedCount !== 1) return json(res, 409, { ok:false, error:"mfa_challenge_already_used" });
+      if (matchedStep !== null) {
+        const advanced = await db.collection("users").updateOne({ _id:user._id, $or:[{lastMfaTotpStep:{$exists:false}},{lastMfaTotpStep:{$lt:matchedStep}}] }, { $set:{ lastMfaTotpStep:matchedStep } });
+        if (advanced.modifiedCount !== 1) return json(res, 401, { ok:false, error:"mfa_code_already_used" });
+      }
       if (recoveryHash) {
         const consumed = await db.collection("users").updateOne({ _id:user._id, recoveryCodeHashes:recoveryHash }, { $pull:{ recoveryCodeHashes:recoveryHash } });
         if (consumed.modifiedCount !== 1) return json(res, 401, { ok:false, error:"invalid_mfa_code" });
@@ -120,9 +124,10 @@ export async function route(req,res,database = null) {
       if (!p.user.mfaPendingSecretEncrypted || !p.user.mfaPendingExpiresAt || p.user.mfaPendingExpiresAt <= now()) return json(res,409,{ok:false,error:"mfa_setup_expired"});
       let secret;
       try { secret = decryptMfaSecret(p.user.mfaPendingSecretEncrypted); } catch { return json(res,503,{ok:false,error:"mfa_configuration_unavailable"}); }
-      if (!verifyTotp(secret,b.code)) return json(res,400,{ok:false,error:"invalid_mfa_code"});
+      const matchedStep = matchTotpStep(secret,b.code);
+      if (matchedStep === null) return json(res,400,{ok:false,error:"invalid_mfa_code"});
       const recoveryCodes = createRecoveryCodes();
-      const enabled = await db.collection("users").updateOne({_id:p.user._id,mfaEnabled:{$ne:true}},{$set:{mfaEnabled:true,mfaSecretEncrypted:p.user.mfaPendingSecretEncrypted,recoveryCodeHashes:recoveryCodes.map(hashRecoveryCode),mfaEnabledAt:now()},$unset:{mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
+      const enabled = await db.collection("users").updateOne({_id:p.user._id,mfaEnabled:{$ne:true}},{$set:{mfaEnabled:true,mfaSecretEncrypted:p.user.mfaPendingSecretEncrypted,recoveryCodeHashes:recoveryCodes.map(hashRecoveryCode),mfaEnabledAt:now(),lastMfaTotpStep:matchedStep},$unset:{mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
       if (enabled.modifiedCount !== 1) return json(res,409,{ok:false,error:"mfa_state_changed"});
       await audit(db,p.user,"account.mfa.enabled");
       return json(res,200,{ok:true,enabled:true,recoveryCodes});

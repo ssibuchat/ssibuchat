@@ -37,7 +37,7 @@ function makeDb(){
 }
 async function invoke(db,user,method,path,body={}){
   const res={statusCode:200,setHeader(){},end(value){this.body=value;}};
-  await routeCommerce({method,url:path,headers:{host:"localhost"},body},res,db,user,path);
+  await routeCommerce({method,url:path,headers:{host:"localhost"},body},res,db,user,new URL(path,"http://localhost").pathname);
   return {status:res.statusCode,body:JSON.parse(res.body)};
 }
 

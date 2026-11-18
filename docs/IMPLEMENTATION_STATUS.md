@@ -93,7 +93,7 @@ This branch is under review and must pass the repository's complete CI workflow 
 
 
 ## PTU branch validation
-- PTU security PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e` passed GitHub Actions run [44330021713](https://github.com/payteamuniversity/payteam/actions/runs/44330021713): 4 tests passed, all three server syntax checks passed, `npm ci` passed and Vite production build passed.
+- PTU security PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e` passed GitHub Actions run [44330021713](https://github.com/payteamuniversity/payteam/actions/runs/44330021713): 7 tests passed, all four server syntax checks passed, `npm ci` passed and Vite production build passed.
 - PTU branch remains a draft. Africa's Talking callback sandbox verification, broadcast consent/opt-out, staging smoke tests and operator acceptance remain release gates.
 - PTU main and production remain unchanged.
 
@@ -103,3 +103,5 @@ This branch is under review and must pass the repository's complete CI workflow 
 - GitHub Actions run [44330325713](https://github.com/ssibuchat/ssibuchat/actions/runs/44330325713) passed: 15 tests, 0 failures; Vite production build passed; production dependency audit found zero vulnerabilities.
 - Same-origin enforcement now compares both scheme and host, with regression coverage for HTTPS downgrade rejection.
 - The full development dependency audit continues to report four high-severity picomatch-related findings; production dependencies remain clean. Upstream currently lists picomatch versions through 4.0.7 as affected without a confirmed patched release.
+
+- PTU rate limiting was extracted into a testable MongoDB-backed helper; the new tests cover threshold enforcement, actor hashing and invalid configuration.

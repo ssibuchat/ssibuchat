@@ -76,11 +76,10 @@ export async function route(req,res) {
       const challengeToken = String(b.challengeToken || "");
       const code = String(b.code || "").trim();
       if (!challengeToken || !code) return json(res, 400, { ok:false, error:"challenge_and_code_required" });
-      const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
-      const throttle = await consumeRateLimit(db, "mfa-verify", hashToken(challengeToken) + "|" + ip, 5, 5 * 60 * 1000);
-      if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       const challenge = await db.collection("mfaChallenges").findOne({ tokenHash:hashToken(challengeToken), expiresAt:{$gt:now()}, usedAt:null });
       if (!challenge) return json(res, 401, { ok:false, error:"invalid_or_expired_mfa_challenge" });
+      const throttle = await consumeRateLimit(db, "mfa-verify", String(challenge.userId), 5, 5 * 60 * 1000);
+      if (!throttle.allowed) { res.setHeader("Retry-After", String(throttle.retryAfterSeconds)); return json(res, 429, { ok:false, error:"rate_limit_exceeded" }); }
       const user = await db.collection("users").findOne({ _id:challenge.userId, status:"active", mfaEnabled:true });
       if (!user) return json(res, 401, { ok:false, error:"invalid_or_expired_mfa_challenge" });
       let valid = false, recoveryHash = null;

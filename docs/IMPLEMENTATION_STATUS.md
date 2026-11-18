@@ -181,3 +181,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added tests for migration idempotency/backfill, invitation acceptance, role enforcement, stale-version conflict, revision history and activity events.
 - Latest GitHub Actions run [44358121172](https://github.com/ssibuchat/ssibuchat/actions/runs/44358121172) passed: npm ci; 34 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - Remaining Work acceptance: real-time co-editing/CRDT, comments, granular document permissions, and shared project/task/calendar CRUD. Current projects/tasks/calendar modules remain owner-scoped.
+
+
+## Phase 1 email recovery and Work UI increment — 2026-11-18
+
+- Added a Resend transactional email adapter; delivery requires RESEND_API_KEY, SSIBUCHAT_EMAIL_FROM and SSIBUCHAT_APP_URL in the independent deployment.
+- Added authenticated email verification requests and public single-use confirmation, plus generic password-reset requests and single-use password-reset confirmation. Tokens are stored as hashes, expire, and are consumed once; password reset invalidates every active session.
+- New standard/admin accounts start with emailVerified=false. Auth/session responses expose verification status. Security settings can request verification; email links auto-confirm. Sign-in UI supports password recovery request and reset-link completion.
+- Added token TTL/unique indexes and integration tests covering verification, token replay rejection, reset, password hash update and session invalidation using a mocked email provider.
+- Added shared project/task/calendar membership checks and activity events; shared workspace UI now supports invitation acceptance, owner role changes/removal, shared documents, revisions and activity.
+- Latest CI run [44359823249](https://github.com/ssibuchat/ssibuchat/actions/runs/44359823249) passed: npm ci; 37 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
+- External acceptance remains: configure and verify the actual Resend sender domain and credentials in staging/production; run real email delivery and account recovery smoke tests. Passkeys, email change and security notifications remain pending.

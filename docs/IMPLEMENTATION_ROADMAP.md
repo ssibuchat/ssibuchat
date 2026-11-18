@@ -38,7 +38,7 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] MFA API integration tests for login challenge success, single-use challenges, recovery-code consumption, invalid codes and cross-challenge TOTP replay prevention.
 - [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
 - [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
-- [x] GitHub Actions CI: latest lockfile-driven run [44354086821](https://github.com/ssibuchat/ssibuchat/actions/runs/44354086821) passed npm ci, 23 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+- [x] GitHub Actions CI: latest Connect API run [44354724227](https://github.com/ssibuchat/ssibuchat/actions/runs/44354724227) passed npm ci, 25 tests, production dependency audit (0 vulnerabilities) and Vite production build.
 - [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
 - [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
 - [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.
@@ -58,10 +58,11 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Unique outbox event identity index.
 
 ### Still required
-- [ ] Per-recipient accepted/sent/delivered/read/failed state and receipts.
+- [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
 - [ ] Reliable fan-out worker, retry schedule, dead-letter queue and outbox consumer.
 - [ ] Push realtime, typing/presence, cursor sync, reconnect and polling fallback.
-- [ ] Group administration: creator/admin roles, member add/remove, invite links, join approval, group settings and history policy.
+- [x] Group creator/admin roles, member listing, member add/remove, admin promotion and group title changes with server-side authorization.
+- [ ] Group invite links, join approval, member-role policies and history visibility controls.
 - [ ] Contacts, block/report, abuse moderation, privacy/discovery controls and user directory pagination.
 - [ ] Message edit/delete, reactions, replies, pins, search and export.
 - [ ] Attachment upload/download, malware scan and authorized previews.

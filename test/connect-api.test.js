@@ -61,7 +61,7 @@ function makeDb() {
       findOne: async filter => messages.find(message=>String(message._id)===String(filter._id)&&message.tenantId===filter.tenantId&&(!filter.senderId||String(message.senderId)===String(filter.senderId)))||null,
       find: filter => cursor(messages.filter(message=>
         (!filter.tenantId||message.tenantId===filter.tenantId)&&
-        (!filter.threadId||String(message.threadId)===String(filter.threadId))&&
+        (!filter.threadId||(filter.threadId.$in?filter.threadId.$in.some(id=>String(id)===String(message.threadId)):String(message.threadId)===String(filter.threadId)))&&
         (!filter.senderId?.$ne||String(message.senderId)!==String(filter.senderId.$ne))&&
         (!filter._id?.$lte||String(message._id)<=String(filter._id.$lte))&&
         (!filter.text?.$regex||new RegExp(filter.text.$regex,filter.text.$options||"").test(message.text||""))&&

@@ -101,15 +101,26 @@ export async function routeCommerce(req,res,db,principal,path){
     const reserved=await inventoryReservations(db,principal.tenantId,order.items);
     if(!reserved)return json(res,409,{ok:false,error:"inventory_reservation_failed"});
     const intent={tenantId:principal.tenantId,orderId:order._id,buyerId:principal._id,merchantId:order.merchantId,provider:"sandbox",status:"pending",amountMinor:order.totalMinor,currency:order.currency,idempotencyKey:key,createdAt:now(),updatedAt:now()};
-    const created=await db.collection("paymentIntents").insertOne(intent);
-    await db.collection("orders").updateOne({_id:order._id,tenantId:principal.tenantId,buyerId:principal._id,status:"draft"},{$set:{status:"awaiting_payment",paymentStatus:"pending",updatedAt:now()}});
+    let created;
+    try{created=await db.collection("paymentIntents").insertOne(intent);}
+    catch{
+      for(const item of order.items.filter(row=>row.trackInventory))await db.collection("products").updateOne({_id:item.productId,tenantId:principal.tenantId},{$inc:{stockQuantity:item.quantity}});
+      return json(res,503,{ok:false,error:"payment_intent_creation_failed"});
+    }
+    const changed=await db.collection("orders").updateOne({_id:order._id,tenantId:principal.tenantId,buyerId:principal._id,status:"draft"},{$set:{status:"awaiting_payment",paymentStatus:"pending",updatedAt:now()}});
+    if(changed.modifiedCount!==1){
+      await db.collection("paymentIntents").updateOne({_id:created.insertedId,status:"pending"},{$set:{status:"cancelled",updatedAt:now()}});
+      for(const item of order.items.filter(row=>row.trackInventory))await db.collection("products").updateOne({_id:item.productId,tenantId:principal.tenantId},{$inc:{stockQuantity:item.quantity}});
+      return json(res,409,{ok:false,error:"order_checkout_state_changed"});
+    }
     return json(res,201,{ok:true,paymentIntent:{id:String(created.insertedId),status:"pending",provider:"sandbox",amountMinor:intent.amountMinor,currency:intent.currency,sandboxSettlementEnabled:process.env.SSIBUCHAT_ALLOW_SANDBOX_SETTLEMENT==="true"}});
   }
   const settle=path.match(/^\/api\/commerce\/payments\/([a-f0-9]{24})\/sandbox-settle$/i);
   if(settle&&req.method==="POST"){
     if(process.env.SSIBUCHAT_PAYMENT_MODE!=="sandbox"||process.env.SSIBUCHAT_ALLOW_SANDBOX_SETTLEMENT!=="true")return json(res,403,{ok:false,error:"sandbox_settlement_disabled"});
-    const intent=await db.collection("paymentIntents").findOne({_id:new ObjectId(settle[1]),tenantId:principal.tenantId,buyerId:principal._id,status:"pending"});
-    if(!intent)return json(res,404,{ok:false,error:"pending_sandbox_payment_not_found"});
+    const intent=await db.collection("paymentIntents").findOne({_id:new ObjectId(settle[1]),tenantId:principal.tenantId,buyerId:principal._id});
+    if(intent?.status==="succeeded")return json(res,200,{ok:true,settled:true,sandbox:true,idempotent:true});
+    if(!intent||intent.status!=="pending")return json(res,404,{ok:false,error:"pending_sandbox_payment_not_found"});
     const claimed=await db.collection("paymentIntents").updateOne({_id:intent._id,status:"pending"},{$set:{status:"succeeded",settledAt:now(),updatedAt:now()}});
     if(claimed.modifiedCount!==1)return json(res,409,{ok:false,error:"payment_already_processed"});
     await db.collection("orders").updateOne({_id:intent.orderId,tenantId:principal.tenantId,paymentStatus:"pending"},{$set:{paymentStatus:"paid",status:"confirmed",paidAt:now(),updatedAt:now()}});

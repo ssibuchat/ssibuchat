@@ -53,15 +53,20 @@ export function totpAt(secret, timestamp = Date.now()) {
   const binary = ((digest[offset] & 127) << 24) | ((digest[offset + 1] & 255) << 16) | ((digest[offset + 2] & 255) << 8) | (digest[offset + 3] & 255);
   return String(binary % (10 ** CODE_DIGITS)).padStart(CODE_DIGITS, "0");
 }
-export function verifyTotp(secret, code, timestamp = Date.now(), window = 1) {
+export function matchTotpStep(secret, code, timestamp = Date.now(), window = 1) {
   const supplied = String(code || "").replace(/\s/g, "");
-  if (!/^\d{6}$/.test(supplied)) return false;
+  if (!/^\d{6}$/.test(supplied)) return null;
+  const currentStep = Math.floor(timestamp / 1000 / STEP_SECONDS);
   for (let offset = -window; offset <= window; offset++) {
-    const expected = totpAt(secret, timestamp + offset * STEP_SECONDS * 1000);
+    const step = currentStep + offset;
+    const expected = totpAt(secret, step * STEP_SECONDS * 1000);
     const a = Buffer.from(expected), b = Buffer.from(supplied);
-    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    if (a.length === b.length && timingSafeEqual(a, b)) return step;
   }
-  return false;
+  return null;
+}
+export function verifyTotp(secret, code, timestamp = Date.now(), window = 1) {
+  return matchTotpStep(secret, code, timestamp, window) !== null;
 }
 export function createRecoveryCodes() {
   return Array.from({ length: RECOVERY_COUNT }, () => randomBytes(8).toString("hex").toUpperCase());

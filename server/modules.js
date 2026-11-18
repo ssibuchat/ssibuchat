@@ -30,14 +30,12 @@ export function projectInput(key, input) {
   for (const [field, max] of Object.entries(definition.fields)) {
     if (input[field] === undefined) continue;
     const value = input[field];
-    if (field === "stockQuantity") {
-      if (!Number.isSafeInteger(value) || value < 0 || value > 1000000000) throw new Error("invalid_stockQuantity");
-      result[field] = value;
+    if (["stockQuantity","priceMinor","sizeBytes","amountMinor"].includes(field)) {
+      const numeric = Number(value);
+      if (!Number.isSafeInteger(numeric) || numeric < 0 || (field === "stockQuantity" && numeric > 1000000000)) throw new Error("invalid_" + field);
+      result[field] = numeric;
     } else if (field === "trackInventory") {
       if (typeof value !== "boolean") throw new Error("invalid_trackInventory");
-      result[field] = value;
-    } else if (["priceMinor", "sizeBytes", "amountMinor"].includes(field)) {
-      if (!Number.isSafeInteger(value) || value < 0) throw new Error("invalid_" + field);
       result[field] = value;
     } else if (field === "currency") {
       if (!isoCurrency(value)) throw new Error("invalid_currency");

@@ -55,7 +55,7 @@ export async function route(req,res,database = null) {
       try{const r=await db.collection("users").insertOne(user);user._id=r.insertedId;}catch{return json(res,409,{ok:false,error:"email_or_username_unavailable"});}
       await db.collection("memberships").updateOne({tenantId:user.tenantId,userId:user._id},{$setOnInsert:{tenantId:user.tenantId,userId:user._id,role:"member",status:"active",createdAt:now()}},{upsert:true});
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"account.register");
-      return json(res,201,{ok:true,user:{id:String(user._id),username,displayName:user.displayName}});
+      return json(res,201,{ok:true,user:{id:String(user._id),username,displayName:user.displayName,email:user.email,emailVerified:user.emailVerified===true}});
     }
     if(path==="/api/auth/login" && req.method==="POST"){
       const b=await readBody(req), login=safeText(b.login,254).toLowerCase();
@@ -72,7 +72,7 @@ export async function route(req,res,database = null) {
         return json(res, 202, { ok: true, mfaRequired: true, challengeToken, expiresInSeconds: 300 });
       }
       const token=await createSession(db,user);setSessionCookie(res,token);await audit(db,user,"auth.login");
-      return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,role:user.role}});
+      return json(res,200,{ok:true,user:{id:String(user._id),username:user.username,displayName:user.displayName,email:user.email,emailVerified:user.emailVerified===true,role:user.role}});
     }
     if(path==="/api/auth/logout"&&req.method==="POST"){const p=await currentPrincipal(req,db);if(p)await db.collection("sessions").deleteOne({_id:p.session._id});clearSessionCookie(res);return json(res,200,{ok:true});}
     if (path === "/api/auth/mfa/verify" && req.method === "POST") {

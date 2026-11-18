@@ -208,6 +208,93 @@ export async function route(req,res,database = null) {
       await audit(db,p.user,"thread.create",String(result.insertedId));
       return json(res,201,{ok:true,thread:{id:String(result.insertedId),title,type}});
     }
+    const groupInvitesMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/invites$/i);
+    if(groupInvitesMatch){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupInvitesMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      if(req.method==="GET"){
+        const invites=await db.collection("groupInvites").find({tenantId:p.user.tenantId,threadId:group._id,revokedAt:null,expiresAt:{$gt:now()}}).sort({createdAt:-1}).limit(50).toArray();
+        return json(res,200,{ok:true,invites:invites.map(invite=>({id:String(invite._id),expiresAt:invite.expiresAt,maxUses:invite.maxUses,uses:invite.uses,requiresApproval:invite.requiresApproval,createdAt:invite.createdAt}))});
+      }
+      if(req.method==="POST"){
+        const b=await readBody(req),expiresInHours=Number(b.expiresInHours??24),maxUses=Number(b.maxUses??10);
+        if(!Number.isInteger(expiresInHours)||expiresInHours<1||expiresInHours>168||!Number.isInteger(maxUses)||maxUses<1||maxUses>100)return json(res,400,{ok:false,error:"invite_expiry_or_use_limit_invalid"});
+        const token=randomBytes(32).toString("base64url");
+        const invite={tenantId:p.user.tenantId,threadId:group._id,tokenHash:hashToken(token),createdBy:p.user._id,createdAt:now(),expiresAt:new Date(Date.now()+expiresInHours*3600000),maxUses,uses:0,requiresApproval:b.requiresApproval!==false,revokedAt:null};
+        const created=await db.collection("groupInvites").insertOne(invite);
+        await audit(db,p.user,"group.invite.create",String(created.insertedId));
+        return json(res,201,{ok:true,invite:{id:String(created.insertedId),token,expiresAt:invite.expiresAt,maxUses,requiresApproval:invite.requiresApproval}});
+      }
+      return json(res,405,{ok:false,error:"method_not_allowed"});
+    }
+    const groupInviteRevokeMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/invites\/([a-f0-9]{24})$/i);
+    if(groupInviteRevokeMatch&&req.method==="DELETE"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupInviteRevokeMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      await db.collection("groupInvites").updateOne({_id:new ObjectId(groupInviteRevokeMatch[2]),tenantId:p.user.tenantId,threadId:group._id,revokedAt:null},{$set:{revokedAt:now(),revokedBy:p.user._id}});
+      await audit(db,p.user,"group.invite.revoke",groupInviteRevokeMatch[2]);
+      return json(res,200,{ok:true,revoked:true});
+    }
+    const groupJoinRequestsMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/join-requests$/i);
+    if(groupJoinRequestsMatch&&req.method==="GET"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupJoinRequestsMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      const requests=await db.collection("groupJoinRequests").find({tenantId:p.user.tenantId,threadId:group._id,status:"pending"}).sort({createdAt:1}).limit(100).toArray();
+      const ids=requests.map(item=>item.userId);
+      const users=ids.length?await db.collection("users").find({_id:{$in:ids}},{projection:{passwordHash:0,email:0,emailNormalized:0}}).toArray():[];
+      return json(res,200,{ok:true,requests:requests.map(item=>{const user=users.find(row=>String(row._id)===String(item.userId));return {id:String(item._id),userId:String(item.userId),username:user?.username||null,displayName:user?.displayName||null,createdAt:item.createdAt};})});
+    }
+    const groupJoinDecisionMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/join-requests\/([a-f0-9]{24})$/i);
+    if(groupJoinDecisionMatch&&req.method==="PATCH"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const group=await db.collection("threads").findOne({_id:new ObjectId(groupJoinDecisionMatch[1]),tenantId:p.user.tenantId,participantIds:p.user._id});
+      if(!group||group.type!=="group")return json(res,404,{ok:false,error:"group_not_found"});
+      const admins=Array.isArray(group.adminIds)&&group.adminIds.length?group.adminIds:[group.createdBy];
+      if(!admins.some(id=>String(id)===String(p.user._id)))return json(res,403,{ok:false,error:"group_admin_required"});
+      const b=await readBody(req),decision=b.decision;
+      if(!["approve","deny"].includes(decision))return json(res,400,{ok:false,error:"decision_must_be_approve_or_deny"});
+      const joinRequest=await db.collection("groupJoinRequests").findOne({_id:new ObjectId(groupJoinDecisionMatch[2]),tenantId:p.user.tenantId,threadId:group._id,status:"pending"});
+      if(!joinRequest)return json(res,404,{ok:false,error:"join_request_not_found"});
+      if(decision==="approve"){
+        const invite=await db.collection("groupInvites").findOne({_id:joinRequest.inviteId,tenantId:p.user.tenantId,threadId:group._id,revokedAt:null,expiresAt:{$gt:now()}});
+        if(!invite)return json(res,409,{ok:false,error:"invite_expired_or_revoked"});
+        const used=await db.collection("groupInvites").updateOne({_id:invite._id,uses:{$lt:invite.maxUses},revokedAt:null,expiresAt:{$gt:now()}},{$inc:{uses:1}});
+        if(used.modifiedCount!==1)return json(res,409,{ok:false,error:"invite_use_limit_reached"});
+        await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId},{$addToSet:{participantIds:joinRequest.userId},$set:{updatedAt:now()}});
+      }
+      await db.collection("groupJoinRequests").updateOne({_id:joinRequest._id,status:"pending"},{$set:{status:decision==="approve"?"approved":"denied",reviewedAt:now(),reviewedBy:p.user._id}});
+      await audit(db,p.user,"group.join_request."+decision,String(joinRequest._id));
+      return json(res,200,{ok:true,status:decision==="approve"?"approved":"denied"});
+    }
+    const groupJoinMatch=path.match(/^\/api\/group-invites\/([A-Za-z0-9_-]{32,})\/join$/);
+    if(groupJoinMatch&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const invite=await db.collection("groupInvites").findOne({tokenHash:hashToken(groupJoinMatch[1]),tenantId:p.user.tenantId,revokedAt:null,expiresAt:{$gt:now()}});
+      if(!invite)return json(res,404,{ok:false,error:"invite_not_found_or_expired"});
+      const group=await db.collection("threads").findOne({_id:invite.threadId,tenantId:p.user.tenantId,type:"group"});
+      if(!group)return json(res,404,{ok:false,error:"group_not_found"});
+      if(group.participantIds.some(id=>String(id)===String(p.user._id)))return json(res,200,{ok:true,status:"already_member"});
+      if(invite.requiresApproval){
+        const existing=await db.collection("groupJoinRequests").findOne({tenantId:p.user.tenantId,inviteId:invite._id,userId:p.user._id,status:"pending"});
+        if(existing)return json(res,202,{ok:true,status:"pending",requestId:String(existing._id)});
+        const request=await db.collection("groupJoinRequests").insertOne({tenantId:p.user.tenantId,threadId:group._id,inviteId:invite._id,userId:p.user._id,status:"pending",createdAt:now()});
+        return json(res,202,{ok:true,status:"pending",requestId:String(request.insertedId)});
+      }
+      const used=await db.collection("groupInvites").updateOne({_id:invite._id,uses:{$lt:invite.maxUses},revokedAt:null,expiresAt:{$gt:now()}},{$inc:{uses:1}});
+      if(used.modifiedCount!==1)return json(res,409,{ok:false,error:"invite_use_limit_reached"});
+      await db.collection("threads").updateOne({_id:group._id,tenantId:p.user.tenantId},{$addToSet:{participantIds:p.user._id},$set:{updatedAt:now()}});
+      await audit(db,p.user,"group.invite.join",String(group._id));
+      return json(res,200,{ok:true,status:"joined"});
+    }
     const groupMembersMatch=path.match(/^\/api\/threads\/([a-f0-9]{24})\/members$/i);
     if(groupMembersMatch){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});

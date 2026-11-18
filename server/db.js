@@ -25,6 +25,8 @@ export async function ensureIndexes(db) {
     db.collection("messages").createIndex({ tenantId: 1, senderId: 1, idempotencyKey: 1 }, { unique: true, sparse: true }),
     db.collection("messageReceipts").createIndex({ tenantId: 1, messageId: 1, userId: 1 }, { unique: true }),
     db.collection("messageReceipts").createIndex({ tenantId: 1, userId: 1, status: 1, updatedAt: -1 }),
+    db.collection("messageReactions").createIndex({ tenantId: 1, messageId: 1, userId: 1, emoji: 1 }, { unique: true }),
+    db.collection("messageReactions").createIndex({ tenantId: 1, messageId: 1 }),
     db.collection("groupInvites").createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection("groupInvites").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("groupJoinRequests").createIndex({ tenantId: 1, inviteId: 1, userId: 1, status: 1 }, { unique: true, partialFilterExpression: { status: "pending" } }),

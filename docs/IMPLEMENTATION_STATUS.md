@@ -192,3 +192,16 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added shared project/task/calendar membership checks and activity events; shared workspace UI now supports invitation acceptance, owner role changes/removal, shared documents, revisions and activity.
 - Latest CI run [44359823249](https://github.com/ssibuchat/ssibuchat/actions/runs/44359823249) passed: npm ci; 37 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
 - External acceptance remains: configure and verify the actual Resend sender domain and credentials in staging/production; run real email delivery and account recovery smoke tests. Passkeys, email change and security notifications remain pending.
+
+
+## Finance double-entry ledger increment — 2026-11-18
+
+- Added account catalog with asset/liability/equity/income/expense types and per-account ISO currency.
+- Added balanced journal posting in integer minor units; every line must be a positive debit or credit, each journal must balance, and account ownership/currency is verified.
+- Journal postings are immutable. Idempotency keys are bound to a payload hash; reusing a key with different content returns conflict.
+- Added trial-balance aggregation with normal-balance sign by account type and immutable reversal journals.
+- Added indexes for account codes, journal idempotency and one-reversal-per-original.
+- Added Finance UI for account creation, balanced two-line journal posting, trial balance and reversals.
+- Tests cover unbalanced rejection, balanced posting, idempotent replay, conflicting key reuse, trial balance, reversal and duplicate reversal rejection.
+- Latest GitHub Actions run [44360462995](https://github.com/ssibuchat/ssibuchat/actions/runs/44360462995) passed: npm ci; 38 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Payment/wallet provider integration, external settlement/reconciliation, KYC/AML and licensing remain unimplemented pending provider and jurisdiction approvals.

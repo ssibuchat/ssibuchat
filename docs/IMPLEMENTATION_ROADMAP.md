@@ -177,8 +177,9 @@ Current state: opt-in chat adapter only; no retrieval, tools, citations or full 
 - [x] Confirm PTU remains on its own repository, identity, integrations and database.
 - [x] Draft PTU security changes for membership checks, broadcast role restrictions, group unread count, demo tester policy and inbound SMS callback authentication.
 - [x] Add PTU unit tests for MAC tester policy and demo-password visibility.
+- [x] Add PTU persistent per-holder throttles for thread starts, message sends and broadcasts.
 - [x] Add a dedicated PTU validation workflow definition on the draft PR branch.
-- [ ] Execute PTU tests, syntax checks and Vite build on GitHub Actions or controlled Node 20 runner.
+- [x] Execute PTU tests, syntax checks and Vite build on GitHub Actions: 4 tests passed, syntax checks passed, and Vite production build passed on PTU PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e`.
 - [ ] Verify Africa's Talking exact callback payload, retry behavior, secret handling and live sandbox.
 - [ ] Add broadcast quotas, recipient consent/opt-out and delivery audit.
 - [ ] Review all PTU route authorization and data migrations.

@@ -146,6 +146,17 @@ export async function route(req,res,database = null) {
       await audit(db,p.user,"account.mfa.disabled");
       return json(res,200,{ok:true,enabled:false});
     }
+    if (path === "/api/account/sessions" && req.method === "GET") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      const rows = await db.collection("sessions").find({userId:p.user._id,expiresAt:{$gt:now()}},{projection:{tokenHash:0}}).sort({createdAt:-1}).limit(20).toArray();
+      return json(res,200,{ok:true,sessions:rows.map(session=>({id:String(session._id),createdAt:session.createdAt,expiresAt:session.expiresAt,current:String(session._id)===String(p.session._id)}))});
+    }
+    if (path === "/api/account/sessions/revoke-others" && req.method === "POST") {
+      if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
+      const result = await db.collection("sessions").deleteMany({userId:p.user._id,_id:{$ne:p.session._id}});
+      await audit(db,p.user,"account.sessions.revoke_others");
+      return json(res,200,{ok:true,revoked:result.deletedCount||0});
+    }
     if (path === "/api/workspace/preferences" || path === "/api/ai/consent" || path === "/api/ai/chat" || path.startsWith("/api/modules/")) {
       if (!p) return json(res, 401, { ok: false, error: "sign_in_required" });
       await routeModules(req, res, db, p.user, path);

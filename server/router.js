@@ -130,7 +130,6 @@ export async function route(req,res) {
     if (path === "/api/account/mfa/disable" && req.method === "POST") {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
       const b = await readBody(req);
-      if (!(await verifyPassword(b.password||"",p.user.passwordHash))) return json(res,401,{ok:false,error:"invalid_credentials"});
       let valid = false;
       try { valid = verifyTotp(decryptMfaSecret(p.user.mfaSecretEncrypted),b.code); } catch { valid = false; }
       if (!valid) return json(res,401,{ok:false,error:"invalid_mfa_code"});

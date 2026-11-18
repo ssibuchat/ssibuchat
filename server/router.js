@@ -121,6 +121,25 @@ export async function route(req,res,database = null) {
       if (!p) return json(res,401,{ok:false,error:"sign_in_required"});
       return await routeWorkspaces(req,res,db,p,path);
     }
+    if(path==="/api/account/email/change/request"&&req.method==="POST"){
+      if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
+      const throttle=await consumeRateLimit(db,"email-change",String(p.user._id),3,60*60*1000);
+      if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
+      const body=await readBody(req),newEmail=emailNorm(body.newEmail),currentPassword=String(body.currentPassword||"");
+      if(!newEmail.includes("@")||newEmail.length>254)return json(res,400,{ok:false,error:"valid_new_email_required"});
+      if(newEmail===p.user.emailNormalized)return json(res,400,{ok:false,error:"new_email_must_be_different"});
+      const credential=await db.collection("users").findOne({_id:p.user._id,status:"active"},{projection:{passwordHash:1}});
+      if(!credential||!(await verifyPassword(currentPassword,credential.passwordHash)))return json(res,401,{ok:false,error:"current_password_incorrect"});
+      const existing=await db.collection("users").findOne({emailNormalized:newEmail});
+      if(existing)return json(res,409,{ok:false,error:"email_unavailable"});
+      const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+60*60*1000);
+      const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_change",newEmail,tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
+      try{
+        const sent=await sendTransactionalEmail({to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+process.env.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
+        if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
+      }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,502,{ok:false,error:"email_delivery_failed"});}
+      return json(res,202,{ok:true,confirmationSent:true});
+    }
     if(path==="/api/account/email/verification/request"&&req.method==="POST"){
       if(!p)return json(res,401,{ok:false,error:"sign_in_required"});
       if(p.user.emailVerified===true)return json(res,200,{ok:true,verified:true});
@@ -146,6 +165,21 @@ export async function route(req,res,database = null) {
       await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId},{$set:{emailVerified:true,emailVerifiedAt:now()}});
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.email.verify");
       return json(res,200,{ok:true,verified:true});
+    }
+    if(path==="/api/auth/email/change/confirm"&&req.method==="POST"){
+      const body=await readBody(req),token=String(body.token||"");
+      if(token.length<32||token.length>128)return json(res,400,{ok:false,error:"invalid_email_change_token"});
+      const record=await db.collection("authTokens").findOne({tokenHash:hashToken(token),purpose:"email_change",usedAt:null,expiresAt:{$gt:now()}});
+      if(!record)return json(res,400,{ok:false,error:"invalid_or_expired_email_change_token"});
+      const claimed=await db.collection("authTokens").updateOne({_id:record._id,usedAt:null,expiresAt:{$gt:now()}},{$set:{usedAt:now()}});
+      if(claimed.modifiedCount!==1)return json(res,409,{ok:false,error:"email_change_token_already_used"});
+      try{
+        const changed=await db.collection("users").updateOne({_id:record.userId,tenantId:record.tenantId,status:"active"},{$set:{email:record.newEmail,emailNormalized:record.newEmail,emailVerified:true,emailVerifiedAt:now(),emailChangedAt:now()}});
+        if(changed.matchedCount!==1)return json(res,404,{ok:false,error:"account_not_found"});
+      }catch(error){if(error?.code===11000)return json(res,409,{ok:false,error:"email_unavailable"});throw error;}
+      await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.email.change");
+      const previous=await db.collection("users").findOne({_id:record.userId},{projection:{email:1}});
+      return json(res,200,{ok:true,emailChanged:true,email:previous?.email||record.newEmail});
     }
     if(path==="/api/auth/password-reset/request"&&req.method==="POST"){
       const b=await readBody(req),email=String(b.email||"").trim().toLowerCase();

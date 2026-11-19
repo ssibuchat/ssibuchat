@@ -58,6 +58,7 @@ export async function routeMedia(req,res,db,principal,path){
   const assetPrefix="/api/media/assets/";
   const remove=path.startsWith(assetPrefix)?path.slice(assetPrefix.length):"";
   if(remove.length===24&&ObjectId.isValid(remove)&&req.method==="DELETE"){
+    const asset=await db.collection("mediaAssets").findOne({_id:new ObjectId(remove),tenantId:principal.tenantId,ownerId:principal._id,status:{$ne:"deleted"}});
     if(!asset)return json(res,404,{ok:false,error:"media_asset_not_found"});
     let deleted;
     try{

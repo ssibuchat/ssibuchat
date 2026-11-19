@@ -62,6 +62,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
 - [x] Leased outbox dispatcher, idempotent delivery-job fan-out, exponential retry/backoff and dead-letter state.
 - [x] Add authenticated `/api/cron/outbox` endpoint, bounded batch execution, retry-safe worker integration and automated endpoint tests.
+- [x] Fan out accepted messages into an idempotent, tenant-scoped in-app notification inbox; expose bounded listing, unread counts and individual/bulk read actions.
+- [ ] Add realtime notification delivery, browser/mobile push providers, delivery preferences and sent/failed callbacks.
 - [x] Add GitHub Actions five-minute scheduler with manual dispatch, HTTPS endpoint validation, bearer-secret authentication and bounded batch invocation. Vercel Hobby rejected a five-minute native cron schedule, so `vercel.json` intentionally contains no unsupported cron entry.
 - [ ] Activate scheduler operationally: merge workflow to default branch, configure GitHub Actions secrets `SSIBUCHAT_CRON_URL` and `CRON_SECRET`, verify the matching secret in independent Vercel Production, run authorized smoke test and observe successful scheduled invocations.
 - [ ] Add provider delivery consumer, push provider, delivery preferences, sent/failed callbacks and operational alerting.

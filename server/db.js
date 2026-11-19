@@ -65,6 +65,7 @@ export async function ensureIndexes(db) {
     db.collection("workspaceInvites").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("workspaceDocuments").createIndex({ tenantId: 1, workspaceId: 1, updatedAt: -1 }),
     db.collection("workspaceDocumentRevisions").createIndex({ tenantId: 1, workspaceId: 1, documentId: 1, version: 1 }, { unique: true }),
+    db.collection("workspaceDocumentComments").createIndex({ tenantId: 1, workspaceId: 1, documentId: 1, createdAt: 1 }),
     db.collection("workspaceActivity").createIndex({ tenantId: 1, workspaceId: 1, createdAt: -1 }),
     db.collection("aiPreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
     db.collection("aiConversations").createIndex({ tenantId: 1, userId: 1, createdAt: -1 }),

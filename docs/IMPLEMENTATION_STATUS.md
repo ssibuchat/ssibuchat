@@ -373,3 +373,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added encrypted version history and audit events; supported destination labels include runtime, GitHub Actions, Vercel, Namecheap, Bluehost and other providers.
 - Added a server-only runtime configuration reader and cryptographic tests for round-trip encryption, tamper rejection and fail-closed missing/invalid keys.
 - **Not yet complete:** provider API adapters and actual synchronization, live runtime adoption across existing modules, key provisioning/rotation recovery, and production MAC acceptance. Provider-target records explicitly remain `pending_provider_adapter`; this code does not claim to set provider secrets.
+
+
+## Independent MAC route — 2026-11-19
+
+- Added the canonical independent management console at `/mac`, with production path `https://ssibuchat.vercel.app/mac` after merge and deployment.
+- The console checks the independent session and requires `role: "admin"`; it exposes independent tester governance, encrypted configuration inventory and recent administrative audit events.
+- Added administrator navigation from the independent application and documented the route in `docs/MAC.md`.
+- PTU-hosted SsibuChat and PTU MAC remain isolated and unchanged by this increment.
+- Current branch head `e0e3f2306a598ca69a4006b9a9c5c365788b6a55` passed GitHub Actions run [44541163718](https://github.com/ssibuchat/ssibuchat/actions/runs/44541163718): dependency installation, test suite, production dependency audit and Vite build all passed.
+- PR #2 remains open and draft. No merge or production deployment occurred. The MAC route has not yet been tested with a live independent production administrator session.

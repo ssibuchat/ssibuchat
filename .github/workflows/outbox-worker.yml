@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SSIBUCHAT_CRON_URL" in
-            https://*) ;;
+            https://*/api/cron/outbox) ;;
             *) echo "SSIBUCHAT_CRON_URL must be an HTTPS production endpoint" >&2; exit 1 ;;
           esac
           test -n "$CRON_SECRET" || { echo "CRON_SECRET is not configured" >&2; exit 1; }

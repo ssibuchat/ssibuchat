@@ -55,5 +55,19 @@ export async function routeMedia(req,res,db,principal,path){
     const signed=presignS3({method:"GET",key:asset.storageKey,expires:300});
     return json(res,200,{ok:true,url:signed.url,expiresIn:signed.expiresIn});
   }
+  const remove=path.match(/^\\/api\\/media\\/assets\\/([a-f0-9]{24})$/i);
+  if(remove&&req.method==="DELETE"){
+    const asset=await db.collection("mediaAssets").findOne({_id:new ObjectId(remove[1]),tenantId:principal.tenantId,ownerId:principal._id,status:{$ne:"deleted"}});
+    if(!asset)return json(res,404,{ok:false,error:"media_asset_not_found"});
+    let deleted;
+    try{
+      const signed=presignS3({method:"DELETE",key:asset.storageKey,expires:300});
+      deleted=await fetch(signed.url,{method:"DELETE",signal:AbortSignal.timeout(12_000)});
+    }catch{return json(res,502,{ok:false,error:"media_storage_delete_failed"});}
+    if(!deleted.ok&&deleted.status!==404)return json(res,502,{ok:false,error:"media_storage_delete_failed"});
+    const result=await db.collection("mediaAssets").updateOne({_id:asset._id,tenantId:principal.tenantId,ownerId:principal._id,status:asset.status},{$set:{status:"deleted",deletedAt:now(),updatedAt:now()}});
+    if(result.modifiedCount!==1)return json(res,409,{ok:false,error:"media_asset_changed_retry"});
+    return json(res,200,{ok:true,deleted:true,assetId:String(asset._id)});
+  }
   return json(res,405,{ok:false,error:"method_not_allowed"});
 }

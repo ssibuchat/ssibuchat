@@ -11,6 +11,7 @@ import { routeLedger } from "./ledger.js";
 import { routeCommerce } from "./commerce.js";
 import { routeMedia } from "./media.js";
 import { routeCalls } from "./calls.js";
+import { processOutboxBatch } from "./outbox-worker.js";
 import { consumeRateLimit } from "./rate-limit.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
@@ -50,11 +51,21 @@ export async function route(req,res,database = null) {
   res.setHeader("Permissions-Policy","camera=(self), microphone=(self), geolocation=()");
   const path=new URL(req.url||"/","http://"+(req.headers?.host||"localhost")).pathname.replace(/\/+$/,"")||"/";
   if(req.method==="OPTIONS"){res.setHeader("Allow","GET,POST,PATCH,DELETE,OPTIONS");res.statusCode=204;return res.end();}
-  if(req.method!=="GET" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
+  if(req.method!=="GET" && path!=="/api/internal/workers/outbox" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
   if((process.env.VERCEL || process.env.NODE_ENV === "production") && !process.env.SSIBUCHAT_SESSION_SECRET) return json(res,503,{ok:false,error:"session_secret_not_configured"});
   try {
     const db=database || await getDb(); if (!database) await ensureIndexes(db);
     if(path==="/api/health" && req.method==="GET") return json(res,200,{ok:true,product:"ssibuchat",database:"connected",timestamp:now().toISOString()});
+    if(path==="/api/internal/workers/outbox" && req.method==="POST"){
+      const expected=process.env.SSIBUCHAT_WORKER_SECRET||"";
+      const authorization=String(req.headers?.authorization||"");
+      const supplied=authorization.startsWith("Bearer ")?authorization.slice(7):"";
+      if(!expected||!supplied||!constantTimeEqual(supplied,expected))return json(res,401,{ok:false,error:"worker_not_authorized"});
+      const body=await readBody(req);
+      const batch=Number.isInteger(body.limit)?Math.max(1,Math.min(100,body.limit)):50;
+      const result=await processOutboxBatch(db,{limit:batch});
+      return json(res,200,{ok:true,...result});
+    }
     if(path==="/api/auth/bootstrap" && req.method==="POST") return await bootstrap(req,res,db,await readBody(req));
     if(path==="/api/auth/register" && req.method==="POST"){
       const b=await readBody(req), email=emailNorm(b.email), username=usernameNorm(b.username), password=String(b.password||"");

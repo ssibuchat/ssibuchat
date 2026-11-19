@@ -50,6 +50,12 @@ test("double-entry ledger enforces balanced postings, idempotency, trial balance
   assert.equal(reversal.status,201);assert.equal(db.journals.length,2);
   assert.equal(db.journals[1].entries[0].debitMinor,0);
   assert.equal(db.journals[1].entries[0].creditMinor,100000);
+  const journalCollection=db.collection("journalEntries"),originalFindOne=journalCollection.findOne;
+  let racedLookup=false;
+  journalCollection.findOne=async filter=>{if(filter.reversalOf&&!racedLookup){racedLookup=true;return null;}return originalFindOne(filter);};
+  const concurrentDuplicate=await invoke(db,user,"POST","/api/finance/ledger/journals/"+posted.body.journal.id+"/reverse");
+  assert.equal(concurrentDuplicate.status,409);
+  journalCollection.findOne=originalFindOne;
   const duplicate=await invoke(db,user,"POST","/api/finance/ledger/journals/"+posted.body.journal.id+"/reverse");
   assert.equal(duplicate.status,409);
 });

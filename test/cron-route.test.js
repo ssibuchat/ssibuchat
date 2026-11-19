@@ -23,7 +23,7 @@ test("canonical cron outbox route authenticates with CRON_SECRET", async () => {
   const res = response();
   await route({ method:"POST", url:"/api/cron/outbox", headers:{ host:"ssibuchat.example.test", authorization:"Bearer test-cron-secret" }, body:{ limit:10 } }, res, database());
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), { ok:true, claimed:0, processed:0, retried:0, deadLettered:0, skipped:0 });
+  assert.deepEqual(JSON.parse(res.body), { ok:true, claimed:0, processed:0, retried:0, deadLettered:0, skipped:0, notificationsCreated:0 });
 });
 
 test("canonical cron outbox route rejects missing or incorrect CRON_SECRET", async () => {

@@ -5,7 +5,7 @@ import { consumeRateLimit } from "./rate-limit.js";
 import { presignS3, s3StorageConfigured } from "./s3-signing.js";
 import { getActiveRuntimeConfig } from "./config-vault.js";
 
-async function getMediaRuntimeConfig(db) {
+export async function getMediaRuntimeConfig(db) {
   const fallback = Object.fromEntries(["SSIBUCHAT_S3_ENDPOINT","SSIBUCHAT_S3_BUCKET","SSIBUCHAT_S3_REGION","SSIBUCHAT_S3_ACCESS_KEY_ID","SSIBUCHAT_S3_SECRET_ACCESS_KEY","SSIBUCHAT_S3_SESSION_TOKEN","SSIBUCHAT_MEDIA_SCAN_URL","SSIBUCHAT_MEDIA_SCAN_TOKEN"].map(key => [key, process.env[key] || ""]));
   if (!process.env.SSIBUCHAT_CONFIG_ENCRYPTION_KEY) return fallback;
   const environment = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production" ? "production" : process.env.VERCEL_ENV === "preview" ? "preview" : "development";

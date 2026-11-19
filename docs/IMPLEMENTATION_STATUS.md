@@ -383,3 +383,14 @@ This branch is under review and must pass the repository's complete CI workflow 
 - PTU-hosted SsibuChat and PTU MAC remain isolated and unchanged by this increment.
 - Current branch head `e0e3f2306a598ca69a4006b9a9c5c365788b6a55` passed GitHub Actions run [44541163718](https://github.com/ssibuchat/ssibuchat/actions/runs/44541163718): dependency installation, test suite, production dependency audit and Vite build all passed.
 - PR #2 remains open and draft. No merge or production deployment occurred. The MAC route has not yet been tested with a live independent production administrator session.
+
+
+## Live runtime configuration adoption — 2026-11-19
+
+- Migrated independent account transactional email to read active encrypted runtime configuration at send time.
+- Runtime keys adopted: `RESEND_API_KEY`, `SSIBUCHAT_EMAIL_FROM`, `SSIBUCHAT_APP_URL`.
+- Runtime values override environment bootstrap values; environment fallback remains available when the vault encryption key is absent.
+- Production, preview and local-development scopes are selected separately.
+- Added tests for environment fallback and encrypted live-value precedence.
+- Not yet CI-verified at this point in the change sequence; GitHub Actions validation is required before acceptance.
+- Other service modules and external provider adapters have not yet been migrated.

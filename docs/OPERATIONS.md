@@ -80,3 +80,12 @@ Before enabling this control plane in production:
 2. Verify key backup/rotation and disaster-recovery procedures. Losing this key makes stored values unrecoverable; rotating it requires a controlled re-encryption migration.
 3. Connect and test provider-specific least-privilege API credentials before enabling synchronization.
 4. Keep PTU credentials and PTU MAC outside this independent vault.
+
+
+## Live runtime configuration adoption — transactional email
+
+The independent account-email service now reads activated runtime-vault entries on each send for `RESEND_API_KEY`, `SSIBUCHAT_EMAIL_FROM` and `SSIBUCHAT_APP_URL`. The database values are decrypted only in the server process and take precedence over the corresponding environment bootstrap values. If the vault encryption key is not configured, the service retains the existing environment-variable behavior. Production, preview and local-development runtime scopes are selected independently.
+
+To activate live email configuration, first provision `SSIBUCHAT_CONFIG_ENCRYPTION_KEY` in the independent server environment, then add the three keys above in MAC with destination `runtime` and the correct environment. Saving a runtime entry activates it. The next account-email operation reads the new values without requiring an application redeployment. Provider credentials must still be valid at Resend; no provider account or secret has been provisioned by this code change.
+
+This is an initial service-by-service adoption, not a claim that all application modules now consume the runtime vault. Other providers, object storage, AI, TURN, scheduler credentials and build-time variables still require their own explicit adapters and tests.

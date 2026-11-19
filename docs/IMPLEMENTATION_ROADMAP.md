@@ -137,7 +137,7 @@ Current state: foundational owner-scoped records and draft orders only. No check
 - [x] Immutable bookkeeping-style records with integer minor-unit amount and ISO currency validation.
 
 ### Still required
-- [ ] Double-entry ledger, authoritative balances and transaction state machine.
+- [x] Double-entry journal posting with balanced debit/credit validation, account ownership/currency validation, idempotency, trial balance aggregation and immutable reversal entries.\n- [ ] Authoritative cached balances, transaction state machine and reconciliation controls.
 - [ ] Wallet custody or payment provider selection and approval.
 - [ ] Payment intents, transfers, payout, refunds, chargebacks and reconciliation.
 - [ ] Receipts, statements, audit trail and dispute evidence.
@@ -145,7 +145,7 @@ Current state: foundational owner-scoped records and draft orders only. No check
 - [ ] Provider webhooks, signature verification, replay prevention and settlement verification.
 - [ ] Penetration tests, reconciliation drills and financial control review.
 
-Current state: bookkeeping records only. Not a wallet, bank account, payment rail or regulated financial service.
+Current state: tested double-entry bookkeeping ledger, trial balance and immutable reversal foundation. No wallet custody, bank account, payment rail or regulated financial service is active.
 
 ## Phase 8 — AI
 

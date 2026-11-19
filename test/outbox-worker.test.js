@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { processOutboxBatch } from "../server/outbox-worker.js";
 
-function makeDb({ message = { _id:"message-1", tenantId:"tenant-1", threadId:"thread-1", senderId:"sender-1" }, thread = { _id:"thread-1", participantIds:["sender-1","recipient-1","recipient-2"] }, event = {} } = {}) {
+function makeDb({ message = { _id:"message-1", tenantId:"tenant-1", threadId:"thread-1", senderId:"sender-1", text:"Hello from a recipient" }, thread = { _id:"thread-1", participantIds:["sender-1","recipient-1","recipient-2"] }, event = {} } = {}) {
   const outbox = [{ _id:"event-1", tenantId:"tenant-1", aggregateId:"message-1", type:"message.accepted", processedAt:null, createdAt:new Date(0), ...event }];
   const jobs = [];
   const notifications = [];
@@ -32,7 +32,7 @@ test("outbox dispatch idempotently queues one job per recipient and marks event 
   assert.equal(f.jobs.length,2);
   assert.equal(f.notifications.length,2);
   assert.equal(f.notifications[0].type,"message");
-  assert.equal(f.notifications[0].preview,"");
+  assert.equal(f.notifications[0].preview,"Hello from a recipient");
   assert.equal(f.outbox[0].processedAt.getTime(),1_000_000);
   assert.equal(f.jobs.every(job=>job.state==="queued"),true);
 });

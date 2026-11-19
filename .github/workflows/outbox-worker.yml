@@ -1,0 +1,42 @@
+name: SsibuChat outbox scheduler
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssibuchat-outbox-worker
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate production endpoint configuration
+        env:
+          SSIBUCHAT_CRON_URL: ${{ secrets.SSIBUCHAT_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          case "$SSIBUCHAT_CRON_URL" in
+            https://*) ;;
+            *) echo "SSIBUCHAT_CRON_URL must be an HTTPS production endpoint" >&2; exit 1 ;;
+          esac
+          test -n "$CRON_SECRET" || { echo "CRON_SECRET is not configured" >&2; exit 1; }
+
+      - name: Dispatch bounded outbox batch
+        env:
+          SSIBUCHAT_CRON_URL: ${{ secrets.SSIBUCHAT_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --max-time 25 --retry 2 --retry-all-errors --retry-delay 2 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            "${SSIBUCHAT_CRON_URL}?limit=50"

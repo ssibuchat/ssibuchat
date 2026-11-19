@@ -73,8 +73,16 @@ export async function routeLedger(req,res,db,principal,path){
     const existing=await db.collection("journalEntries").findOne({tenantId:principal.tenantId,ownerId:principal._id,reversalOf:original._id});
     if(existing)return json(res,409,{ok:false,error:"journal_already_reversed",reversalId:String(existing._id)});
     const reversal={tenantId:principal.tenantId,ownerId:principal._id,createdBy:principal._id,currency:original.currency,memo:"Reversal: "+original.memo,idempotencyKey:"reversal-"+String(original._id),totalDebitMinor:original.totalCreditMinor,totalCreditMinor:original.totalDebitMinor,entries:original.entries.map(entry=>({...entry,debitMinor:entry.creditMinor,creditMinor:entry.debitMinor})),status:"posted",reversalOf:original._id,createdAt:now()};
-    const created=await db.collection("journalEntries").insertOne(reversal);
-    return json(res,201,{ok:true,reversalId:String(created.insertedId)});
+    try{
+      const created=await db.collection("journalEntries").insertOne(reversal);
+      return json(res,201,{ok:true,reversalId:String(created.insertedId)});
+    }catch(error){
+      if(error?.code===11000){
+        const raced=await db.collection("journalEntries").findOne({tenantId:principal.tenantId,ownerId:principal._id,reversalOf:original._id});
+        if(raced)return json(res,409,{ok:false,error:"journal_already_reversed",reversalId:String(raced._id)});
+      }
+      throw error;
+    }
   }
   return json(res,405,{ok:false,error:"method_not_allowed"});
 }

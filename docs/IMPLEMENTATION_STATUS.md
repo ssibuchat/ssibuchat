@@ -346,5 +346,5 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added member-visible document comments with per-workspace/document scoping, 4,000-character bounds, write throttling and activity events.
 - Added MongoDB index for workspace document comment retrieval.
 - Added integration test covering viewer comment permission, document comment retrieval and activity event recording.
-- Latest code commit awaits CI run [44474063932](https://github.com/ssibuchat/ssibuchat/actions/runs/44474063932); do not treat this increment as accepted until that run passes.
+- GitHub Actions run [44474063932](https://github.com/ssibuchat/ssibuchat/actions/runs/44474063932) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
 - Remaining Work scope: shared file attachments, realtime collaborative editing/presence, shared search, task assignments/mentions/dependencies, calendar recurrence/time-zone/reminders and browser-level collaboration acceptance.

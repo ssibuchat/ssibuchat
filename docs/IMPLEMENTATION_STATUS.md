@@ -355,3 +355,11 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added discussion display and comment submission to the Work shared-document panel.
 - Opening a document fetches its current content and workspace-scoped comments; member users, including viewers, can contribute comments without gaining document edit permissions.
 - UI changes were included in GitHub Actions run [44474347669](https://github.com/ssibuchat/ssibuchat/actions/runs/44474347669), which passed npm ci, 51 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+
+
+## Finance ledger concurrency hardening — 2026-11-18
+
+- Hardened immutable journal reversal against concurrent duplicate requests. The unique reversal index remains authoritative; a duplicate-key race is translated into a deterministic 409 response containing the existing reversal identifier rather than surfacing as an internal server error.
+- Added a test that simulates the race between the initial existence check and unique-index insert.
+- GitHub Actions run [44474559418](https://github.com/ssibuchat/ssibuchat/actions/runs/44474559418) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- The ledger is a double-entry bookkeeping foundation with balanced journals, trial balance and reversals; it is not a wallet, bank account, payment rail or licensed financial service.

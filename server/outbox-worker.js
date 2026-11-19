@@ -18,7 +18,7 @@ export async function processOutboxBatch(db, { limit = 50, clock = () => Date.no
       { $or: [{ leaseUntil: { $exists: false } }, { leaseUntil: { $lt: now } }] }
     ]
   }).sort({ createdAt: 1 }).limit(Math.max(1, Math.min(100, limit))).toArray();
-  const result = { claimed: 0, processed: 0, retried: 0, deadLettered: 0, skipped: 0 };
+  const result = { claimed: 0, processed: 0, retried: 0, deadLettered: 0, skipped: 0, notificationsCreated: 0 };
   for (const candidate of candidates) {
     const leaseToken = randomBytes(18).toString("base64url");
     const claimResult = await db.collection("outboxEvents").findOneAndUpdate(
@@ -47,6 +47,16 @@ export async function processOutboxBatch(db, { limit = 50, clock = () => Date.no
             state: "queued", attempts: 0, nextAttemptAt: now, createdAt: now, updatedAt: now } },
           { upsert: true }
         );
+        const notification = await db.collection("notifications").updateOne(
+          { tenantId:event.tenantId, userId, messageId:message._id },
+          { $setOnInsert:{
+            tenantId:event.tenantId, userId, type:"message", threadId:message.threadId,
+            messageId:message._id, actorId:message.senderId, preview:safeText(message.text,160),
+            readAt:null, createdAt:message.createdAt || now, updatedAt:now
+          } },
+          { upsert:true }
+        );
+        if (notification.upsertedCount === 1) result.notificationsCreated++;
       }
       await db.collection("outboxEvents").updateOne(
         { _id: event._id, leaseToken, processedAt: null },

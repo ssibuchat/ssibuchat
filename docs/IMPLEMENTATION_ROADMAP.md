@@ -83,7 +83,7 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 - [ ] Status/stories, expiry enforcement, audience controls, moderation and abuse reporting.
 - [ ] Export/delete and media lifecycle tests.
 
-Current state: Media module stores owner-scoped metadata only. Binary upload, storage and scanning are not implemented.
+Current state: private binary upload and scanner-gated access foundation implemented and CI-tested; production storage/scanner configuration, media processing, retention and lifecycle acceptance remain open.
 
 ## Phase 4 — Voice and video calls
 
@@ -94,7 +94,7 @@ Current state: Media module stores owner-scoped metadata only. Binary upload, st
 - [ ] Blocking, reporting, abuse controls and recording consent.
 - [ ] Network quality, concurrency, regional latency and mobile data tests.
 
-Current state: no independent live calling service is implemented.
+Current state: direct one-to-one WebRTC signaling and browser call foundation implemented; TURN, push/ringing reliability, group media topology, reconnect/QoS and end-to-end device acceptance remain open.
 
 ## Phase 5 — Work and shared workspace
 

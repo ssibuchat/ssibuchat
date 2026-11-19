@@ -55,9 +55,9 @@ export async function routeMedia(req,res,db,principal,path){
     const signed=presignS3({method:"GET",key:asset.storageKey,expires:300});
     return json(res,200,{ok:true,url:signed.url,expiresIn:signed.expiresIn});
   }
-  const remove=path.match(/^\\/api\\/media\\/assets\\/([a-f0-9]{24})$/i);
-  if(remove&&req.method==="DELETE"){
-    const asset=await db.collection("mediaAssets").findOne({_id:new ObjectId(remove[1]),tenantId:principal.tenantId,ownerId:principal._id,status:{$ne:"deleted"}});
+  const assetPrefix="/api/media/assets/";
+  const remove=path.startsWith(assetPrefix)?path.slice(assetPrefix.length):"";
+  if(remove.length===24&&ObjectId.isValid(remove)&&req.method==="DELETE"){
     if(!asset)return json(res,404,{ok:false,error:"media_asset_not_found"});
     let deleted;
     try{

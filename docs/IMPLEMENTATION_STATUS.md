@@ -363,3 +363,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added a test that simulates the race between the initial existence check and unique-index insert.
 - GitHub Actions run [44474559418](https://github.com/ssibuchat/ssibuchat/actions/runs/44474559418) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - The ledger is a double-entry bookkeeping foundation with balanced journals, trial balance and reversals; it is not a wallet, bank account, payment rail or licensed financial service.
+
+
+## Independent MAC configuration vault increment — 2026-11-19
+
+- Added an admin-only infrastructure configuration panel to the independent SsibuChat administration surface.
+- Added an AES-256-GCM encrypted configuration vault. The encryption key is a dedicated 32-byte base64 secret, `SSIBUCHAT_CONFIG_ENCRYPTION_KEY`, held only in the independent deployment environment.
+- Added write-only configuration APIs: list metadata, create/rotate encrypted values, and delete values. Plaintext values and ciphertext are not returned by the admin listing API.
+- Added encrypted version history and audit events; supported destination labels include runtime, GitHub Actions, Vercel, Namecheap, Bluehost and other providers.
+- Added a server-only runtime configuration reader and cryptographic tests for round-trip encryption, tamper rejection and fail-closed missing/invalid keys.
+- **Not yet complete:** provider API adapters and actual synchronization, live runtime adoption across existing modules, key provisioning/rotation recovery, and production MAC acceptance. Provider-target records explicitly remain `pending_provider_adapter`; this code does not claim to set provider secrets.

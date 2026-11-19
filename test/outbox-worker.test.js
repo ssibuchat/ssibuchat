@@ -5,6 +5,7 @@ import { processOutboxBatch } from "../server/outbox-worker.js";
 function makeDb({ message = { _id:"message-1", tenantId:"tenant-1", threadId:"thread-1", senderId:"sender-1" }, thread = { _id:"thread-1", participantIds:["sender-1","recipient-1","recipient-2"] }, event = {} } = {}) {
   const outbox = [{ _id:"event-1", tenantId:"tenant-1", aggregateId:"message-1", type:"message.accepted", processedAt:null, createdAt:new Date(0), ...event }];
   const jobs = [];
+  const notifications = [];
   const db = { collection(name) {
     if (name === "outboxEvents") return {
       find: () => ({ sort(){return this;}, limit(){return this;}, toArray:async()=>outbox.filter(row=>!row.processedAt&&!row.deadLetteredAt) }),
@@ -18,9 +19,10 @@ function makeDb({ message = { _id:"message-1", tenantId:"tenant-1", threadId:"th
     if(name==="messages")return {findOne:async()=>message};
     if(name==="threads")return {findOne:async()=>thread};
     if(name==="deliveryJobs")return {updateOne:async(filter,update)=>{if(!jobs.some(job=>job.messageId===filter.messageId&&job.userId===filter.userId))jobs.push(update.$setOnInsert);return {upsertedCount:1};}};
+    if(name==="notifications")return {updateOne:async(filter,update)=>{if(notifications.some(row=>row.messageId===filter.messageId&&row.userId===filter.userId))return {upsertedCount:0};notifications.push(update.$setOnInsert);return {upsertedCount:1};}};
     throw new Error("unexpected_collection_"+name);
   }};
-  return {db,outbox,jobs};
+  return {db,outbox,jobs,notifications};
 }
 
 test("outbox dispatch idempotently queues one job per recipient and marks event processed",async()=>{
@@ -28,6 +30,9 @@ test("outbox dispatch idempotently queues one job per recipient and marks event 
   const result=await processOutboxBatch(f.db,{clock:()=>1_000_000});
   assert.equal(result.processed,1);
   assert.equal(f.jobs.length,2);
+  assert.equal(f.notifications.length,2);
+  assert.equal(f.notifications[0].type,"message");
+  assert.equal(f.notifications[0].preview,"");
   assert.equal(f.outbox[0].processedAt.getTime(),1_000_000);
   assert.equal(f.jobs.every(job=>job.state==="queued"),true);
 });

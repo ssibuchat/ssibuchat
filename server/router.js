@@ -52,13 +52,13 @@ export async function route(req,res,database = null) {
   res.setHeader("Permissions-Policy","camera=(self), microphone=(self), geolocation=()");
   const path=new URL(req.url||"/","http://"+(req.headers?.host||"localhost")).pathname.replace(/\/+$/,"")||"/";
   if(req.method==="OPTIONS"){res.setHeader("Allow","GET,POST,PATCH,DELETE,OPTIONS");res.statusCode=204;return res.end();}
-  if(req.method!=="GET" && path!=="/api/internal/workers/outbox" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
+  if(req.method!=="GET" && path!=="/api/internal/workers/outbox" && path!=="/api/cron/outbox" && !isSameOrigin(req)) return json(res,403,{ok:false,error:"origin_not_allowed"});
   if((process.env.VERCEL || process.env.NODE_ENV === "production") && !process.env.SSIBUCHAT_SESSION_SECRET) return json(res,503,{ok:false,error:"session_secret_not_configured"});
   try {
     const db=database || await getDb(); if (!database) await ensureIndexes(db);
     if(path==="/api/health" && req.method==="GET") return json(res,200,{ok:true,product:"ssibuchat",database:"connected",timestamp:now().toISOString()});
-    if(path==="/api/internal/workers/outbox" && req.method==="POST"){
-      const expected=process.env.SSIBUCHAT_WORKER_SECRET||"";
+    if((path==="/api/cron/outbox" || path==="/api/internal/workers/outbox") && req.method==="POST"){
+      const expected=path==="/api/cron/outbox" ? (process.env.CRON_SECRET||"") : (process.env.SSIBUCHAT_WORKER_SECRET||process.env.CRON_SECRET||"");
       const authorization=String(req.headers?.authorization||"");
       const supplied=authorization.startsWith("Bearer ")?authorization.slice(7):"";
       if(!expected||!supplied||!constantTimeEqual(supplied,expected))return json(res,401,{ok:false,error:"worker_not_authorized"});

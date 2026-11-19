@@ -13,6 +13,7 @@ import { routeMedia } from "./media.js";
 import { routeCalls } from "./calls.js";
 import { processOutboxBatch } from "./outbox-worker.js";
 import { consumeRateLimit } from "./rate-limit.js";
+import { routeConfig } from "./config-vault.js";
 const now = () => new Date();
 const emailNorm = (v) => safeText(v, 254).toLowerCase();
 const usernameNorm = (v) => safeText(v, 32).replace(/^@/, "").toLowerCase();
@@ -329,6 +330,7 @@ export async function route(req,res,database = null) {
     if(path==="/api/auth/me"&&req.method==="GET") return json(res,200,{ok:true,user:p?{id:String(p.user._id),username:p.user.username,displayName:p.user.displayName,role:p.user.role,accountType:p.user.accountType}:null});
     if(path.startsWith("/api/admin/")){
       if(!p||p.user.role!=="admin")return json(res,403,{ok:false,error:"admin_required"});
+      if(path==="/api/admin/config"||path.startsWith("/api/admin/config/")) return await routeConfig(req,res,db,p.user,path);
       if(path==="/api/admin/audit"&&req.method==="GET"){
         const url=new URL(req.url||"/","http://"+(req.headers?.host||"localhost"));
         const requested=Number(url.searchParams.get("limit")||50),limit=Number.isInteger(requested)?Math.max(1,Math.min(100,requested)):50;

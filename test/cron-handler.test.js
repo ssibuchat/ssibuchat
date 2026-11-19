@@ -17,7 +17,7 @@ test("serverless cron endpoint accepts authenticated POST and returns batch resu
   const res = response();
   await handler({method:"POST",url:"/api/cron/outbox",headers:{authorization:"Bearer serverless-cron-secret"},body:{limit:12}},res,database());
   assert.equal(res.statusCode,200);
-  assert.deepEqual(JSON.parse(res.body),{ok:true,claimed:0,processed:0,retried:0,deadLettered:0,skipped:0});
+  assert.deepEqual(JSON.parse(res.body),{ok:true,claimed:0,processed:0,retried:0,deadLettered:0,skipped:0,notificationsCreated:0});
 });
 
 test("serverless cron endpoint rejects GET and incorrect bearer credentials", async () => {

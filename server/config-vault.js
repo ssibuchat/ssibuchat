@@ -98,5 +98,5 @@ export async function routeConfig(req, res, db, actor, path) {
     await db.collection("auditEvents").insertOne({ tenantId: actor.tenantId || "global", actorId: actor._id, action: "config.value.deleted", target: row.target + "/" + row.environment + "/" + row.key, createdAt: new Date() });
     return json(res, 200, { ok: true });
   }
-  return false;
+  return json(res, 405, { ok: false, error: "method_not_allowed" });
 }

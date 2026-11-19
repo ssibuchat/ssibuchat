@@ -338,3 +338,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 
 - Media: S3-compatible SigV4 private upload/download, ownership validation, object HEAD verification and fail-closed malware scanning are implemented and tested. Production provider configuration, transcoding, thumbnails, quotas, retention and lifecycle acceptance remain outstanding.
 - Calls: participant-authorized WebRTC signaling and direct browser audio/video UI are implemented and tested. Production TURN, realtime push, group-call media, reconnect/QoS and device acceptance remain outstanding.
+
+
+## Work collaboration increment — 2026-11-18
+
+- Existing shared workspace APIs were reviewed and verified: expiring hashed invitations, owner/editor/viewer membership, role change/removal, versioned shared documents, revision history and activity feed.
+- Added member-visible document comments with per-workspace/document scoping, 4,000-character bounds, write throttling and activity events.
+- Added MongoDB index for workspace document comment retrieval.
+- Added integration test covering viewer comment permission, document comment retrieval and activity event recording.
+- Latest code commit awaits CI run [44474063932](https://github.com/ssibuchat/ssibuchat/actions/runs/44474063932); do not treat this increment as accepted until that run passes.
+- Remaining Work scope: shared file attachments, realtime collaborative editing/presence, shared search, task assignments/mentions/dependencies, calendar recurrence/time-zone/reminders and browser-level collaboration acceptance.

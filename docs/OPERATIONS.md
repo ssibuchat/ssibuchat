@@ -98,3 +98,8 @@ The media upload, completion, download and deletion handlers now resolve active 
 To activate this path, provision the independent `SSIBUCHAT_CONFIG_ENCRYPTION_KEY` and add the required storage/scanner keys in MAC using destination `runtime` and the matching environment. The object store and scanner must be reachable and configured with least-privilege access. A scanner result must explicitly be `clean` before an uploaded asset becomes available; pending or failed scans do not grant download access.
 
 This change does not itself provision an object-storage bucket, scanner service, CDN, transcoder, lifecycle policy or production credentials. Verify upload, HEAD metadata validation, clean/infected/pending scanner outcomes, download authorization and deletion against the real provider before production acceptance.
+
+
+## In-app notification inbox
+
+Accepted-message outbox processing now creates one durable notification per recipient using a unique tenant/user/message identity. The authenticated inbox API supports bounded listing, unread counts, individual read and mark-all-read actions. The notification store is isolated by both tenant and user. This provides persisted in-app notification state only; it does not constitute realtime transport, browser/mobile push delivery or provider delivery confirmation. Those require separate adapters and acceptance tests.

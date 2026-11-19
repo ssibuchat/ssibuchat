@@ -33,14 +33,14 @@ The independent foundation branch now includes separate identity and tester cont
 - Workspaces, projects, tasks and calendar-event records.
 - Business profiles, product records and draft order snapshots.
 - Immutable finance bookkeeping records in integer minor units.
-- Media metadata records (not file uploads).
+- Private S3-compatible media upload/download, object verification, scanner-gated release and owner-scoped deletion; quotas, processing and retention remain pending.
 - Per-user dashboard preferences and explicit AI consent/provider adapter.
 - MongoDB-backed rate limiting, origin validation and production browser security headers.
 - Optional TOTP MFA with encrypted secrets, single-use recovery codes and login challenge enforcement.
 
 ### Not production complete
 
-Payments, wallet custody, shared cross-user workspaces, binary media storage, E2EE, WebRTC/TURN, push delivery, email verification, passkeys, full AI retrieval/governance and production operations remain incomplete. Real MongoDB/Vercel MFA staging acceptance is still required before broad rollout. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
+Payments and wallet custody, media quotas/transcoding/retention and production storage/scanner acceptance, E2EE, production TURN, push delivery, realtime collaboration, email-provider acceptance, passkeys, full AI retrieval/governance and production operations remain incomplete. Real MongoDB/Vercel MFA staging acceptance is still required before broad rollout. Do not enable regulated or provider-dependent functionality until its integration and acceptance gates pass.
 
 ## Local development
 

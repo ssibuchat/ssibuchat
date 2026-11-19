@@ -112,7 +112,7 @@ Current state: direct one-to-one WebRTC signaling and browser call foundation im
 - [ ] Assignment, notifications, mentions, task dependencies, workflow automation and audit history.
 - [ ] Collaboration concurrency, conflict handling and offline drafts.
 
-Current state: personal owner-scoped records and dashboard preferences only; shared collaboration is not complete.
+Current state: cross-user workspace membership, shared documents, optimistic version conflict handling, revision history, comments and activity feed APIs are implemented and tested. Shared files, realtime co-editing/presence, shared search and broader workflow automation remain outstanding.
 
 ## Phase 6 — Commerce
 

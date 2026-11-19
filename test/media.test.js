@@ -18,7 +18,7 @@ function makeDb(){
   const collections={
     mediaAssets:{
       insertOne:async row=>{row._id=new ObjectId();assets.push(row);return {insertedId:row._id};},
-      findOne:async filter=>assets.find(row=>(!filter._id||String(row._id)===String(filter._id))&&row.tenantId===filter.tenantId&&String(row.ownerId)===String(filter.ownerId)&&(!filter.status||row.status===filter.status)&&(!filter.scanStatus||row.scanStatus===filter.scanStatus))||null,
+      findOne:async filter=>assets.find(row=>(!filter._id||String(row._id)===String(filter._id))&&row.tenantId===filter.tenantId&&String(row.ownerId)===String(filter.ownerId)&&(!filter.status||(typeof filter.status==="object"?(!filter.status.$ne||row.status!==filter.status.$ne):row.status===filter.status))&&(!filter.scanStatus||row.scanStatus===filter.scanStatus))||null,
       updateOne:async(filter,update)=>{const row=assets.find(item=>String(item._id)===String(filter._id)&&(!filter.ownerId||String(item.ownerId)===String(filter.ownerId))&&(!filter.status||item.status===filter.status));if(!row)return {modifiedCount:0};Object.assign(row,update.$set);return {modifiedCount:1};},
       find:filter=>cursor(assets.filter(row=>row.tenantId===filter.tenantId&&String(row.ownerId)===String(filter.ownerId)&&filter.status.$in.includes(row.status)))
     },
@@ -79,5 +79,32 @@ test("media objects stay unavailable when no malware scanner is configured",asyn
     assert.equal(completed.status,202);assert.equal(completed.body.asset.status,"pending_scan");
     const download=await invoke(db,user,"GET","/api/media/assets/"+id+"/download");
     assert.equal(download.status,404);
+  }finally{globalThis.fetch=originalFetch;}
+});
+
+test("media deletion is owner-scoped and removes private object before marking metadata deleted",async()=>{
+  Object.assign(process.env,storageEnv);
+  const db=makeDb(),user={_id:new ObjectId(),tenantId:"tenant-1"},id=new ObjectId();
+  db.assets.push({_id:id,tenantId:user.tenantId,ownerId:user._id,name:"private.png",mimeType:"image/png",sizeBytes:128,storageKey:"tenant-1/"+String(user._id)+"/private",status:"available",scanStatus:"clean"});
+  const originalFetch=globalThis.fetch;let deleteUrl="";
+  globalThis.fetch=async(url,options)=>{deleteUrl=String(url);assert.equal(options.method,"DELETE");return {ok:true,status:204};};
+  try{
+    const denied=await invoke(db,{_id:new ObjectId(),tenantId:"tenant-1"},"DELETE","/api/media/assets/"+id);
+    assert.equal(denied.status,404);
+    assert.equal(db.assets[0].status,"available");
+    const removed=await invoke(db,user,"DELETE","/api/media/assets/"+id);
+    assert.equal(removed.status,200);assert.equal(removed.body.deleted,true);
+    assert.equal(db.assets[0].status,"deleted");assert.ok(deleteUrl.includes("X-Amz-Signature"));
+  }finally{globalThis.fetch=originalFetch;}
+});
+
+test("media metadata remains available for retry when object storage deletion fails",async()=>{
+  Object.assign(process.env,storageEnv);
+  const db=makeDb(),user={_id:new ObjectId(),tenantId:"tenant-1"},id=new ObjectId();
+  db.assets.push({_id:id,tenantId:user.tenantId,ownerId:user._id,storageKey:"tenant-1/"+String(user._id)+"/private",status:"available"});
+  const originalFetch=globalThis.fetch;globalThis.fetch=async()=>({ok:false,status:503});
+  try{
+    const result=await invoke(db,user,"DELETE","/api/media/assets/"+id);
+    assert.equal(result.status,502);assert.equal(db.assets[0].status,"available");
   }finally{globalThis.fetch=originalFetch;}
 });

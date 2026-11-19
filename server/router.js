@@ -6,7 +6,7 @@ import { hashToken } from "./security.js";
 import { decryptMfaSecret, encryptMfaSecret, generateTotpSecret, hashRecoveryCode, provisioningUri, verifyTotp, matchTotpStep, createRecoveryCodes } from "./mfa.js";
 import { routeModules } from "./modules.js";
 import { routeWorkspaces } from "./workspaces.js";
-import { sendTransactionalEmail } from "./email.js";
+import { sendTransactionalEmail, getEmailRuntimeConfig } from "./email.js";
 import { routeLedger } from "./ledger.js";
 import { routeCommerce } from "./commerce.js";
 import { routeMedia } from "./media.js";
@@ -20,10 +20,10 @@ const usernameNorm = (v) => safeText(v, 32).replace(/^@/, "").toLowerCase();
 const isTester = (u) => u && u.accountType === "tester";
 async function policy(db) { const d = await db.collection("appSettings").findOne({ _id: "tester-access" }); return { enabled: d?.enabled === true, updatedAt: d?.updatedAt || null }; }
 async function audit(db, actor, action, target = null) { await db.collection("auditEvents").insertOne({ tenantId: actor?.tenantId || "platform", actorId: actor?._id || null, action, target, createdAt: now() }); }
-async function sendSecurityNotice(user, subject, text) {
+async function sendSecurityNotice(db, user, subject, text) {
   if (!user?.email || user.emailVerified !== true) return false;
   try {
-    const sent = await sendTransactionalEmail({ to:user.email, subject, text });
+    const sent = await sendTransactionalEmail({ db, to:user.email, subject, text });
     return sent.configured === true;
   } catch { return false; }
 }
@@ -164,7 +164,7 @@ export async function route(req,res,database = null) {
       const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+60*60*1000);
       const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_change",newEmail,previousEmail:p.user.email||null,tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
       try{
-        const sent=await sendTransactionalEmail({to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+process.env.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
+        const mailConfig=await getEmailRuntimeConfig(db);\n        const sent=await sendTransactionalEmail({db,to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+mailConfig.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
         if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
       }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,502,{ok:false,error:"email_delivery_failed"});}
       return json(res,202,{ok:true,confirmationSent:true});
@@ -177,9 +177,9 @@ export async function route(req,res,database = null) {
       if(!throttle.allowed){res.setHeader("Retry-After",String(throttle.retryAfterSeconds));return json(res,429,{ok:false,error:"rate_limit_exceeded"});}
       const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+24*60*60*1000);
       const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_verification",tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
-      const appUrl=process.env.SSIBUCHAT_APP_URL;
+      const appUrl=(await getEmailRuntimeConfig(db)).SSIBUCHAT_APP_URL;
       try{
-        const sent=await sendTransactionalEmail({to:p.user.email,subject:"Verify your SsibuChat email",text:"Verify your email using this link: "+appUrl+"/?verifyEmail="+encodeURIComponent(token)+"\nThis link expires in 24 hours. If you did not request this, ignore this message."});
+        const sent=await sendTransactionalEmail({db,to:p.user.email,subject:"Verify your SsibuChat email",text:"Verify your email using this link: "+appUrl+"/?verifyEmail="+encodeURIComponent(token)+"\nThis link expires in 24 hours. If you did not request this, ignore this message."});
         if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
       }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,502,{ok:false,error:"email_delivery_failed"});}
       return json(res,202,{ok:true,verificationSent:true});
@@ -208,7 +208,7 @@ export async function route(req,res,database = null) {
       }catch(error){if(error?.code===11000)return json(res,409,{ok:false,error:"email_unavailable"});throw error;}
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.email.change");
       let previousEmailNoticeSent=false;
-      if(record.previousEmail){try{const notice=await sendTransactionalEmail({to:record.previousEmail,subject:"Your SsibuChat email address was changed",text:"The email address for your independent SsibuChat account was changed. If you did not make this change, use account recovery and contact SsibuChat support."});previousEmailNoticeSent=notice.configured===true;}catch{previousEmailNoticeSent=false;}}
+      if(record.previousEmail){try{const notice=await sendTransactionalEmail({db,to:record.previousEmail,subject:"Your SsibuChat email address was changed",text:"The email address for your independent SsibuChat account was changed. If you did not make this change, use account recovery and contact SsibuChat support."});previousEmailNoticeSent=notice.configured===true;}catch{previousEmailNoticeSent=false;}}
       return json(res,200,{ok:true,emailChanged:true,email:record.newEmail,previousEmailNoticeSent});
     }
     if(path==="/api/auth/password-reset/request"&&req.method==="POST"){
@@ -220,7 +220,7 @@ export async function route(req,res,database = null) {
         const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+30*60*1000);
         const created=await db.collection("authTokens").insertOne({tenantId:user.tenantId,userId:user._id,purpose:"password_reset",tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
         try{
-          const sent=await sendTransactionalEmail({to:user.email,subject:"Reset your SsibuChat password",text:"Reset your password using this link: "+process.env.SSIBUCHAT_APP_URL+"/?resetPassword="+encodeURIComponent(token)+"\nThis link expires in 30 minutes. If you did not request this, ignore this message."});
+          const sent=await sendTransactionalEmail({db,to:user.email,subject:"Reset your SsibuChat password",text:"Reset your password using this link: "+(await getEmailRuntimeConfig(db)).SSIBUCHAT_APP_URL+"/?resetPassword="+encodeURIComponent(token)+"\nThis link expires in 30 minutes. If you did not request this, ignore this message."});
           if(!sent.configured)await db.collection("authTokens").deleteOne({_id:created.insertedId});
         }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});}
       }
@@ -239,7 +239,7 @@ export async function route(req,res,database = null) {
       if(changed.matchedCount!==1)return json(res,404,{ok:false,error:"account_not_found"});
       await db.collection("sessions").deleteMany({userId:record.userId});
       await audit(db,{_id:record.userId,tenantId:record.tenantId},"account.password.reset");
-      const securityNoticeSent=await sendSecurityNotice(account,"Your SsibuChat password was reset","The password for your independent SsibuChat account was reset. All active sessions were signed out. If you did not request this reset, contact SsibuChat support.");
+      const securityNoticeSent=await sendSecurityNotice(db, account,"Your SsibuChat password was reset","The password for your independent SsibuChat account was reset. All active sessions were signed out. If you did not request this reset, contact SsibuChat support.");
       return json(res,200,{ok:true,passwordReset:true,signedOutEverywhere:true,securityNoticeSent});
     }
     if (path === "/api/account/password/change" && req.method === "POST") {
@@ -259,7 +259,7 @@ export async function route(req,res,database = null) {
       let securityNoticeSent = false;
       if (credential.email && credential.emailVerified === true) {
         try {
-          const notice = await sendTransactionalEmail({to:credential.email,subject:"Your SsibuChat password was changed",text:"The password for your independent SsibuChat account was changed. All active sessions were signed out. If you did not make this change, use account recovery and contact SsibuChat support."});
+          const notice = await sendTransactionalEmail({db,to:credential.email,subject:"Your SsibuChat password was changed",text:"The password for your independent SsibuChat account was changed. All active sessions were signed out. If you did not make this change, use account recovery and contact SsibuChat support."});
           securityNoticeSent = notice.configured === true;
         } catch { securityNoticeSent = false; }
       }
@@ -293,7 +293,7 @@ export async function route(req,res,database = null) {
       const enabled = await db.collection("users").updateOne({_id:p.user._id,mfaEnabled:{$ne:true}},{$set:{mfaEnabled:true,mfaSecretEncrypted:p.user.mfaPendingSecretEncrypted,recoveryCodeHashes:recoveryCodes.map(hashRecoveryCode),mfaEnabledAt:now(),lastMfaTotpStep:matchedStep},$unset:{mfaPendingSecretEncrypted:"",mfaPendingExpiresAt:""}});
       if (enabled.modifiedCount !== 1) return json(res,409,{ok:false,error:"mfa_state_changed"});
       await audit(db,p.user,"account.mfa.enabled");
-      const securityNoticeSent=await sendSecurityNotice(p.user,"Two-step verification enabled on SsibuChat","Authenticator-based two-step verification was enabled for your independent SsibuChat account. If you did not make this change, secure your account immediately.");
+      const securityNoticeSent=await sendSecurityNotice(db, p.user,"Two-step verification enabled on SsibuChat","Authenticator-based two-step verification was enabled for your independent SsibuChat account. If you did not make this change, secure your account immediately.");
       return json(res,200,{ok:true,enabled:true,recoveryCodes,securityNoticeSent});
     }
     if (path === "/api/account/mfa/disable" && req.method === "POST") {
@@ -308,7 +308,7 @@ export async function route(req,res,database = null) {
       await db.collection("sessions").deleteMany({userId:p.user._id});
       clearSessionCookie(res);
       await audit(db,p.user,"account.mfa.disabled");
-      const securityNoticeSent=await sendSecurityNotice(credentialUser,"Two-step verification disabled on SsibuChat","Authenticator-based two-step verification was disabled for your independent SsibuChat account. If you did not make this change, recover your account and contact SsibuChat support.");
+      const securityNoticeSent=await sendSecurityNotice(db, credentialUser,"Two-step verification disabled on SsibuChat","Authenticator-based two-step verification was disabled for your independent SsibuChat account. If you did not make this change, recover your account and contact SsibuChat support.");
       return json(res,200,{ok:true,enabled:false,securityNoticeSent});
     }
     if (path === "/api/account/sessions" && req.method === "GET") {

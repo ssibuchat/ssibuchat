@@ -403,3 +403,13 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added tests for environment fallback, encrypted runtime precedence, storage readiness and signed upload URL generation.
 - Account-email runtime configuration passed CI at [run 44541831135](https://github.com/ssibuchat/ssibuchat/actions/runs/44541831135). The media runtime increment passed dependency installation, tests, production dependency audit and build at [run 44542043157](https://github.com/ssibuchat/ssibuchat/actions/runs/44542043157).
 - Real provider provisioning, scanner acceptance, transcoding, thumbnails, CDN and retention remain outstanding.
+
+
+## Scheduled outbox endpoint alignment — 2026-11-19
+
+- Corrected a production-blocking mismatch: the GitHub Actions workflow targeted `/api/cron/outbox` with `CRON_SECRET`, while the server previously exposed only `/api/internal/workers/outbox` guarded by `SSIBUCHAT_WORKER_SECRET`.
+- The server now exposes the canonical `POST /api/cron/outbox` and authenticates it with `CRON_SECRET`, matching the workflow and the independent Vercel Production secret name. The legacy internal endpoint remains as a compatibility alias.
+- The workflow now validates that `SSIBUCHAT_CRON_URL` is an HTTPS URL ending in `/api/cron/outbox`.
+- Added route tests for valid and invalid cron authentication.
+- This is not yet operationally active: PR changes must reach `main`, `SSIBUCHAT_CRON_URL` and matching `CRON_SECRET` values must be configured in GitHub Actions and independent Vercel Production, and a production dispatch must be verified.
+- CI for this scheduler correction is pending.

@@ -38,6 +38,9 @@ jobs:
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --max-time 25 --retry 2 --retry-all-errors --retry-delay 2 \
+            -X POST \
             -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
             -H "Accept: application/json" \
-            "${SSIBUCHAT_CRON_URL}?limit=50"
+            --data '{"limit":50}' \
+            "${SSIBUCHAT_CRON_URL}"

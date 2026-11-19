@@ -412,4 +412,4 @@ This branch is under review and must pass the repository's complete CI workflow 
 - The workflow now validates that `SSIBUCHAT_CRON_URL` is an HTTPS URL ending in `/api/cron/outbox`.
 - Added route tests for valid and invalid cron authentication.
 - This is not yet operationally active: PR changes must reach `main`, `SSIBUCHAT_CRON_URL` and matching `CRON_SECRET` values must be configured in GitHub Actions and independent Vercel Production, and a production dispatch must be verified.
-- CI for this scheduler correction is pending.
+- The scheduler endpoint, workflow validation and route-authentication tests passed CI at [run 44542298850](https://github.com/ssibuchat/ssibuchat/actions/runs/44542298850), including `npm test`, production dependency audit and build.

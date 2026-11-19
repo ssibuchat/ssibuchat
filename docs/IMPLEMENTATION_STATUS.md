@@ -348,3 +348,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added integration test covering viewer comment permission, document comment retrieval and activity event recording.
 - GitHub Actions run [44474063932](https://github.com/ssibuchat/ssibuchat/actions/runs/44474063932) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
 - Remaining Work scope: shared file attachments, realtime collaborative editing/presence, shared search, task assignments/mentions/dependencies, calendar recurrence/time-zone/reminders and browser-level collaboration acceptance.
+
+
+## Shared document discussion UI — 2026-11-18
+
+- Added discussion display and comment submission to the Work shared-document panel.
+- Opening a document fetches its current content and workspace-scoped comments; member users, including viewers, can contribute comments without gaining document edit permissions.
+- UI changes were included in GitHub Actions run [44474347669](https://github.com/ssibuchat/ssibuchat/actions/runs/44474347669), which passed npm ci, 51 tests, production dependency audit (0 vulnerabilities) and Vite production build.

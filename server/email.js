@@ -10,7 +10,7 @@ export async function getEmailRuntimeConfig(db) {
     SSIBUCHAT_APP_URL: process.env.SSIBUCHAT_APP_URL || ""
   };
   if (!db || !process.env.SSIBUCHAT_CONFIG_ENCRYPTION_KEY) return Object.freeze(fallback);
-  const active = await getActiveRuntimeConfig(db, process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production" ? "production" : "preview");
+  const active = await getActiveRuntimeConfig(db, process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production" ? "production" : process.env.VERCEL_ENV === "preview" ? "preview" : "development");
   return Object.freeze({ ...fallback, ...active });
 }
 

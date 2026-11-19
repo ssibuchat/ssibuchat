@@ -413,3 +413,18 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Added route tests for valid and invalid cron authentication.
 - This is not yet operationally active: PR changes must reach `main`, `SSIBUCHAT_CRON_URL` and matching `CRON_SECRET` values must be configured in GitHub Actions and independent Vercel Production, and a production dispatch must be verified.
 - The scheduler endpoint, workflow validation and route-authentication tests passed CI at [run 44542298850](https://github.com/ssibuchat/ssibuchat/actions/runs/44542298850), including `npm test`, production dependency audit and build.
+
+
+## In-app notification delivery increment — 2026-11-19
+
+- Extended the accepted-message outbox fan-out to create an idempotent notification record per recipient, in addition to the existing durable provider delivery job.
+- Added tenant/user-scoped MongoDB indexes and authenticated APIs: `GET /api/notifications` (bounded list and unread count), `PATCH /api/notifications/:id/read`, and `PATCH /api/notifications/read-all`.
+- Added tests for recipient notification creation, preview content, inbox isolation and read-state ownership.
+- This is an in-app inbox consumer, not a push-provider or realtime implementation. Push delivery adapters, delivery preferences, callbacks, realtime transport and mobile push remain outstanding.
+- CI passed at [run 44545085803](https://github.com/ssibuchat/ssibuchat/actions/runs/44545085803): installation, complete tests, production dependency audit and Vite build.
+
+## Cron serverless method correction — 2026-11-19
+
+- The dedicated Vercel `api/cron/outbox.js` handler and GitHub Actions scheduler now both use authenticated `POST` with a JSON batch limit, rather than side-effecting `GET`.
+- Added serverless-handler method/authentication tests and aligned prior route tests with POST semantics.
+- CI passed at [run 44544605002](https://github.com/ssibuchat/ssibuchat/actions/runs/44544605002): installation, tests, production dependency audit and build.

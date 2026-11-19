@@ -11,7 +11,7 @@ function makeDb() {
   const viewer={_id:new ObjectId(),username:"viewer",usernameNormalized:"viewer",displayName:"Viewer"};
   const workspace={_id:new ObjectId(),tenantId:"tenant-1",ownerId:owner._id,name:"Shared workspace"};
   const members=[{tenantId:"tenant-1",workspaceId:workspace._id,userId:owner._id,role:"owner",status:"active",createdAt:new Date()}];
-  const invites=[],documents=[],revisions=[],events=[],limits=new Map();
+  const invites=[],documents=[],revisions=[],comments=[],events=[],limits=new Map();
   const collections={
     workspaces:{findOne:async filter=>String(filter._id)===String(workspace._id)&&filter.tenantId==="tenant-1"?workspace:null},
     workspaceMembers:{
@@ -39,6 +39,10 @@ function makeDb() {
       insertOne:async row=>{revisions.push(row);return {insertedId:new ObjectId()};},
       find:filter=>cursor(revisions.filter(row=>row.tenantId===filter.tenantId&&String(row.workspaceId)===String(filter.workspaceId)&&String(row.documentId)===String(filter.documentId)))
     },
+    workspaceDocumentComments:{
+      insertOne:async row=>{row._id=new ObjectId();comments.push(row);return {insertedId:row._id};},
+      find:filter=>cursor(comments.filter(row=>row.tenantId===filter.tenantId&&String(row.workspaceId)===String(filter.workspaceId)&&String(row.documentId)===String(filter.documentId)&&!row.deletedAt))
+    },
     workspaceActivity:{
       insertOne:async row=>{row._id=new ObjectId();events.push(row);return {insertedId:row._id};},
       find:filter=>cursor(events.filter(row=>row.tenantId===filter.tenantId&&String(row.workspaceId)===String(filter.workspaceId)))
@@ -46,7 +50,7 @@ function makeDb() {
     rateLimits:{findOneAndUpdate:async filter=>{const count=(limits.get(filter.key)||0)+1;limits.set(filter.key,count);return {count};}}
   };
   function cursor(rows){return {sort(spec){const [field,direction]=Object.entries(spec)[0]||[];if(field)rows.sort((a,b)=>(a[field]>b[field]?1:a[field]<b[field]?-1:0)*direction);return this;},limit(){return this;},toArray:async()=>rows};}
-  return {owner,editor,viewer,workspace,members,invites,documents,revisions,events,collection:name=>collections[name]};
+  return {owner,editor,viewer,workspace,members,invites,documents,revisions,comments,events,collection:name=>collections[name]};
 }
 async function invoke(db,principal,method,path,body={}) {
   const headers={},res={statusCode:200,setHeader(name,value){headers[name]=value;},end(value){this.body=value;}};
@@ -93,4 +97,16 @@ test("shared documents enforce roles and optimistic version checks while retaini
   const feed=await invoke(db,viewer,"GET","/api/workspaces/"+db.workspace._id+"/activity");
   assert.equal(feed.status,200);
   assert.ok(feed.body.events.some(event=>event.type==="workspace.document.update"));
+});
+
+test("workspace members can comment on shared documents and activity is recorded",async()=>{
+  const db=makeDb(),owner={...db.owner,tenantId:"tenant-1"},viewer={...db.viewer,tenantId:"tenant-1"};
+  db.members.push({tenantId:"tenant-1",workspaceId:db.workspace._id,userId:viewer._id,role:"viewer",status:"active",createdAt:new Date()});
+  const created=await invoke(db,owner,"POST","/api/workspaces/"+db.workspace._id+"/documents",{title:"Plan",content:"Shared plan"});
+  const docId=created.body.document.id;
+  const comment=await invoke(db,viewer,"POST","/api/workspaces/"+db.workspace._id+"/documents/"+docId+"/comments",{text:"Looks good"});
+  assert.equal(comment.status,201);assert.equal(comment.body.comment.text,"Looks good");
+  const listed=await invoke(db,owner,"GET","/api/workspaces/"+db.workspace._id+"/documents/"+docId+"/comments");
+  assert.equal(listed.status,200);assert.equal(listed.body.comments.length,1);
+  assert.ok(db.events.some(event=>event.type==="workspace.document.comment"));
 });

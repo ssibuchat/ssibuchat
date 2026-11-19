@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
-import { json, safeText } from "./security.js";
+import { json, readBody } from "./security.js";
 
 const TARGETS = new Set(["runtime", "github-actions", "vercel", "namecheap", "bluehost", "other"]);
 const ENVIRONMENTS = new Set(["shared", "production", "preview", "development"]);
@@ -58,7 +58,7 @@ export async function routeConfig(req, res, db, actor, path) {
 
   if (path === "/api/admin/config" && req.method === "PUT") {
     let body;
-    try { body = await (await import("./security.js")).readBody(req); }
+    try { body = await readBody(req); }
     catch { return json(res, 400, { ok: false, error: "invalid_request_body" }); }
     const key = String(body.key || "").trim().toUpperCase();
     const target = String(body.target || "runtime");
@@ -82,7 +82,7 @@ export async function routeConfig(req, res, db, actor, path) {
       lastSyncAt: null, lastSyncError: null
     };
     await db.collection("runtimeConfigVersions").insertOne({ ...record, configId: previous?._id || null, version, changedBy: actor._id, changedAt: timestamp });
-    await collection.updateOne(identity, { $set: record, $setOnInsert: { createdAt: timestamp } }, { upsert: true });
+    await collection.updateOne(identity, { $set: record }, { upsert: true });
     await db.collection("auditEvents").insertOne({ tenantId: actor.tenantId || "global", actorId: actor._id, action: "config.value.updated", target: target + "/" + environment + "/" + key, createdAt: timestamp });
     const saved = await collection.findOne(identity);
     return json(res, 200, { ok: true, record: publicRecord(saved), message: target === "runtime" ? "Encrypted runtime value saved. Runtime consumers must opt in to the live configuration service." : "Encrypted value saved. Provider synchronization is not yet connected." });

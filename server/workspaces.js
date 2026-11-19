@@ -41,7 +41,7 @@ export async function routeWorkspaces(req, res, db, principal, path) {
     await activity(db,principal.tenantId,invite.workspaceId,principal._id,"workspace.member.join",principal._id,"A member accepted a workspace invitation");
     return json(res,200,{ok:true,joined:true,workspaceId:String(invite.workspaceId),role:invite.role});
   }
-  const match = path.match(/^\/api\/workspaces\/([a-f0-9]{24})(?:\/(members|invites|documents|activity)(?:\/([a-f0-9]{24})(?:\/(revisions))?)?)?$/i);
+  const match = path.match(/^\/api\/workspaces\/([a-f0-9]{24})(?:\/(members|invites|documents|activity)(?:\/([a-f0-9]{24})(?:\/(revisions|comments))?)?)?$/i);
   if (!match) return null;
   const workspaceId = new ObjectId(match[1]), section = match[2] || "", childId = match[3], suffix = match[4];
   const workspace = await db.collection("workspaces").findOne({ _id:workspaceId, tenantId:principal.tenantId });

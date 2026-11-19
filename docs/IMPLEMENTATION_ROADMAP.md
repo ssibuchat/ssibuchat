@@ -81,12 +81,14 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 
 - [ ] Object-storage provider selection and separate deployment credentials.
 - [ ] Signed upload/download intents, size/MIME/checksum validation and ownership verification.
+- [x] Owner- and tenant-scoped media deletion using short-lived SigV4 DELETE URLs; metadata is marked deleted only after storage confirms deletion (or confirms object absence). Failure leaves metadata available for safe retry; tests cover cross-user denial and provider failure.
+- [ ] Enforce race-safe per-user/tenant storage quotas, abandoned-upload cleanup and usage accounting.
 - [ ] Malware scanning, thumbnail generation, transcoding, CDN and retention jobs.
 - [ ] Media/document/link galleries, search, sharing and revocation.
 - [ ] Status/stories, expiry enforcement, audience controls, moderation and abuse reporting.
-- [ ] Export/delete and media lifecycle tests.
+- [ ] Export/delete integration, scheduled retention enforcement and full media lifecycle tests.
 
-Current state: private binary upload and scanner-gated access foundation implemented and CI-tested; production storage/scanner configuration, media processing, retention and lifecycle acceptance remain open.
+Current state: private binary upload, scanner-gated access and owner-scoped object deletion foundations are implemented; production storage/scanner configuration, quota accounting, media processing, retention and lifecycle acceptance remain open.
 
 ## Phase 4 — Voice and video calls
 

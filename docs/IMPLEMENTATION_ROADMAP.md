@@ -219,3 +219,18 @@ Current state: opt-in chat adapter only; no retrieval, tools, citations or full 
 No production promotion until the current commit passes CI, security review and staging acceptance; all required secrets and providers are configured in the correct deployment; external webhook behavior is verified; backup restore and rollback are rehearsed; accessibility and performance checks are recorded; data migrations are reversible; monitoring and incident response are ready; and the actual deployed application passes smoke tests.
 
 Do not merge a draft PR, enable public financial functionality, expose live demo passwords, or claim a provider-dependent feature is live without the corresponding verified acceptance evidence.
+
+
+## Phase 12 — Independent MAC infrastructure and configuration control plane
+
+- [x] Add admin-only configuration inventory and write-only encrypted secret/value storage.
+- [x] Encrypt values with AES-256-GCM using a dedicated deployment-held 32-byte key.
+- [x] Add configuration version history and administrative audit events.
+- [x] Add server-only active runtime configuration reader.
+- [ ] Provision the independent production vault key and rehearse encrypted backup and key rotation.
+- [ ] Add provider authorization lifecycle and least-privilege credentials for GitHub, Vercel, Namecheap, Bluehost and additional providers.
+- [ ] Implement provider-specific read/validate/write adapters, idempotent synchronization, drift detection and error recovery.
+- [ ] Wire runtime consumers to versioned dynamic configuration with schema validation, atomic activation and rollback.
+- [ ] Separate live runtime values from build-time variables and provider settings that require a deployment or service restart.
+- [ ] Add MAC controls for provider connection health, permission scope, configuration sync history and change approvals.
+- [ ] Test no-secret-leak behavior, provider failures, concurrency, key loss/restore, rollback and cross-deployment isolation.

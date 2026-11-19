@@ -73,6 +73,7 @@ export async function routeConfig(req, res, db, actor, path) {
     const identity = { key, target, environment };
     const previous = await collection.findOne(identity);
     const version = (previous?.version || 0) + 1;
+    const configId = previous?._id || new ObjectId();
     const timestamp = new Date();
     const active = target === "runtime" ? body.activate !== false : false;
     const syncStatus = target === "runtime" ? (active ? "active" : "inactive") : "pending_provider_adapter";
@@ -81,8 +82,9 @@ export async function routeConfig(req, res, db, actor, path) {
       createdAt: previous?.createdAt || timestamp, updatedAt: timestamp, updatedBy: actor._id,
       lastSyncAt: null, lastSyncError: null
     };
-    await db.collection("runtimeConfigVersions").insertOne({ ...record, configId: previous?._id || null, version, changedBy: actor._id, changedAt: timestamp });
-    await collection.updateOne(identity, { $set: record }, { upsert: true });
+    await db.collection("runtimeConfigVersions").insertOne({ ...record, configId, version, changedBy: actor._id, changedAt: timestamp });
+    if (previous) await collection.updateOne({ _id: configId }, { $set: record });
+    else await collection.insertOne({ _id: configId, ...record });
     await db.collection("auditEvents").insertOne({ tenantId: actor.tenantId || "global", actorId: actor._id, action: "config.value.updated", target: target + "/" + environment + "/" + key, createdAt: timestamp });
     const saved = await collection.findOne(identity);
     return json(res, 200, { ok: true, record: publicRecord(saved), message: target === "runtime" ? "Encrypted runtime value saved. Runtime consumers must opt in to the live configuration service." : "Encrypted value saved. Provider synchronization is not yet connected." });

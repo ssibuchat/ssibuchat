@@ -61,8 +61,10 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 ### Still required
 - [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
 - [x] Leased outbox dispatcher, idempotent delivery-job fan-out, exponential retry/backoff and dead-letter state.
-- [x] Add authenticated Vercel Cron endpoint at `/api/cron/outbox`, bounded batch execution and five-minute `vercel.json` schedule; automated endpoint tests added. This cadence requires Pro/Enterprise and is not considered operationally active until the independent Production project has the required plan and `CRON_SECRET` configured and a production invocation is observed.
-- [ ] Verify scheduled production invocations and add provider delivery consumer, push provider, delivery preferences, sent/failed callbacks and operational alerting.
+- [x] Add authenticated `/api/cron/outbox` endpoint, bounded batch execution, retry-safe worker integration and automated endpoint tests.
+- [x] Add GitHub Actions five-minute scheduler with manual dispatch, HTTPS endpoint validation, bearer-secret authentication and bounded batch invocation. Vercel Hobby rejected a five-minute native cron schedule, so `vercel.json` intentionally contains no unsupported cron entry.
+- [ ] Activate scheduler operationally: merge workflow to default branch, configure GitHub Actions secrets `SSIBUCHAT_CRON_URL` and `CRON_SECRET`, verify the matching secret in independent Vercel Production, run authorized smoke test and observe successful scheduled invocations.
+- [ ] Add provider delivery consumer, push provider, delivery preferences, sent/failed callbacks and operational alerting.
 - [ ] Push realtime, typing/presence, cursor sync, reconnect and polling fallback.
 - [x] Group creator/admin roles, member listing, member add/remove, admin promotion and group title changes with server-side authorization.
 - [x] Secure group invite tokens stored only as hashes, with expiry, use limits, revocation and optional admin approval for join requests.

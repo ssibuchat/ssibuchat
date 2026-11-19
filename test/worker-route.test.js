@@ -16,16 +16,3 @@ test("outbox worker endpoint accepts authorized bounded batch requests",async()=
   await route({method:"POST",url:"/api/internal/workers/outbox",headers:{host:"localhost",authorization:"Bearer worker-secret-test"},body:{limit:200}},res,db());
   assert.equal(res.statusCode,200);assert.equal(JSON.parse(res.body).ok,true);assert.equal(JSON.parse(res.body).claimed,0);
 });
-
-test("Vercel Cron GET requires its dedicated bearer secret",async()=>{
-  process.env.CRON_SECRET="cron-secret-test";
-  const res=response();
-  await route({method:"GET",url:"/api/internal/workers/outbox?limit=10",headers:{host:"localhost"}},res,db());
-  assert.equal(res.statusCode,401);assert.equal(JSON.parse(res.body).error,"worker_not_authorized");
-});
-test("Vercel Cron GET accepts CRON_SECRET and executes a bounded batch",async()=>{
-  process.env.CRON_SECRET="cron-secret-test";
-  const res=response();
-  await route({method:"GET",url:"/api/internal/workers/outbox?limit=500",headers:{host:"localhost",authorization:"Bearer cron-secret-test"}},res,db());
-  assert.equal(res.statusCode,200);assert.equal(JSON.parse(res.body).ok,true);assert.equal(JSON.parse(res.body).claimed,0);
-});

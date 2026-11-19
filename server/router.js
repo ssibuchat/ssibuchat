@@ -56,22 +56,13 @@ export async function route(req,res,database = null) {
   try {
     const db=database || await getDb(); if (!database) await ensureIndexes(db);
     if(path==="/api/health" && req.method==="GET") return json(res,200,{ok:true,product:"ssibuchat",database:"connected",timestamp:now().toISOString()});
-    if(path==="/api/internal/workers/outbox" && (req.method==="POST"||req.method==="GET")){
-      // Vercel Cron invokes GET and supplies CRON_SECRET as a bearer token.
-      // Manual/internal POST workers retain their separate deployment secret.
-      const expected=(req.method==="GET"?process.env.CRON_SECRET:process.env.SSIBUCHAT_WORKER_SECRET)||"";
+    if(path==="/api/internal/workers/outbox" && req.method==="POST"){
+      const expected=process.env.SSIBUCHAT_WORKER_SECRET||"";
       const authorization=String(req.headers?.authorization||"");
       const supplied=authorization.startsWith("Bearer ")?authorization.slice(7):"";
       if(!expected||!supplied||!constantTimeEqual(supplied,expected))return json(res,401,{ok:false,error:"worker_not_authorized"});
-      let requestedLimit=50;
-      if(req.method==="POST"){
-        const body=await readBody(req);
-        requestedLimit=Number.isInteger(body.limit)?body.limit:50;
-      }else{
-        const queryLimit=new URL(req.url||"/","http://"+(req.headers?.host||"localhost")).searchParams.get("limit");
-        if(queryLimit!==null&&/^\\d+$/.test(queryLimit))requestedLimit=Number(queryLimit);
-      }
-      const batch=Math.max(1,Math.min(100,requestedLimit));
+      const body=await readBody(req);
+      const batch=Number.isInteger(body.limit)?Math.max(1,Math.min(100,body.limit)):50;
       const result=await processOutboxBatch(db,{limit:batch});
       return json(res,200,{ok:true,...result});
     }

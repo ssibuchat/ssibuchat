@@ -164,7 +164,8 @@ export async function route(req,res,database = null) {
       const token=randomBytes(32).toString("base64url"),expiresAt=new Date(Date.now()+60*60*1000);
       const created=await db.collection("authTokens").insertOne({tenantId:p.user.tenantId,userId:p.user._id,purpose:"email_change",newEmail,previousEmail:p.user.email||null,tokenHash:hashToken(token),createdAt:now(),expiresAt,usedAt:null});
       try{
-        const mailConfig=await getEmailRuntimeConfig(db);\n        const sent=await sendTransactionalEmail({db,to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+mailConfig.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
+        const mailConfig=await getEmailRuntimeConfig(db);
+        const sent=await sendTransactionalEmail({db,to:newEmail,subject:"Confirm your new SsibuChat email",text:"Confirm this email address for your independent SsibuChat account: "+mailConfig.SSIBUCHAT_APP_URL+"/?confirmEmailChange="+encodeURIComponent(token)+"\nThis link expires in one hour. If you did not request this, ignore this message."});
         if(!sent.configured){await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,503,{ok:false,error:"email_provider_not_configured"});}
       }catch{await db.collection("authTokens").deleteOne({_id:created.insertedId});return json(res,502,{ok:false,error:"email_delivery_failed"});}
       return json(res,202,{ok:true,confirmationSent:true});

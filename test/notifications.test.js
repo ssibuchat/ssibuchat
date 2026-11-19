@@ -8,7 +8,7 @@ function makeDb(rows){
   return {collection(name){
     if(name!=="notifications")throw new Error("unexpected_collection_"+name);
     return {
-      find(filter){const selected=rows.filter(row=>String(row.tenantId)===String(filter.tenantId)&&String(row.userId)===String(filter.userId));return {sort(){selected.sort((a,b)=>b.createdAt-a.createdAt);return this;},limit(n){this.rows=selected.slice(0,n);return this;},toArray:async()=>selected.slice(0,this.rows?.length??selected.length)};},
+      find(filter){const selected=rows.filter(row=>String(row.tenantId)===String(filter.tenantId)&&String(row.userId)===String(filter.userId));let limited=selected;return {sort(){selected.sort((a,b)=>b.createdAt-a.createdAt);return this;},limit(n){limited=selected.slice(0,n);return this;},toArray:async()=>limited};},
       countDocuments:async filter=>rows.filter(row=>String(row.tenantId)===String(filter.tenantId)&&String(row.userId)===String(filter.userId)&&row.readAt===null).length,
       updateOne:async(filter,update)=>{const row=rows.find(item=>String(item._id)===String(filter._id)&&String(item.tenantId)===String(filter.tenantId)&&String(item.userId)===String(filter.userId)&&item.readAt===null);if(!row)return {matchedCount:0,modifiedCount:0};Object.assign(row,update.$set);return {matchedCount:1,modifiedCount:1};},
       findOne:async filter=>rows.find(item=>String(item._id)===String(filter._id)&&String(item.tenantId)===String(filter.tenantId)&&String(item.userId)===String(filter.userId))||null,

@@ -4,6 +4,7 @@ import { Activity, BriefcaseBusiness, CalendarDays, ChevronRight, CircleUserRoun
 import "./styles.css";
 import ModuleWorkspace from "./modules.jsx";
 import InfrastructureControl from "./admin-infrastructure.jsx";
+import MacConsole from "./mac.jsx";
 const pillars = [
  {id:"connect",label:"Connect",icon:MessageCircle,desc:"Chats, calls, communities and channels",tone:"blue"},
  {id:"work",label:"Work",icon:BriefcaseBusiness,desc:"Tasks, projects, calendar and files",tone:"violet"},
@@ -124,6 +125,7 @@ function App(){
  async function setTesterAccess(enabled){setAdminError("");try{const d=await request("/api/admin/testers/access",{method:"PATCH",body:JSON.stringify({enabled})});setTesterPolicy(d.policy);}catch(e){setAdminError(e.message);}}
  async function addTester(e){e.preventDefault();setAdminError("");try{await request("/api/admin/testers",{method:"POST",body:JSON.stringify({username:testerUsername,password:testerPassword})});setTesterUsername("");setTesterPassword("");const d=await request("/api/admin/testers");setTesters(d.testers||[]);setTesterPolicy(d.policy);}catch(e){setAdminError(e.message);}}
  const current=pillars.find(p=>p.id===active)||pillars[0];
+ if (window.location.pathname.replace(/\\/+$/, "") === "/mac") return <MacConsole/>;
  return <div className="app-shell">
   <aside className="rail"><div className="brand-mark">S<span>.</span></div><button className="rail-active" title="Overview"><LayoutDashboard/></button>{pillars.map(p=><button key={p.id} className={active===p.id?"rail-active":""} title={p.label} onClick={()=>setActive(p.id)}><p.icon/></button>)}<div className="rail-spacer"/><button title="Help"><Headphones/></button><button title="Profile" onClick={()=>user?signOut():setAuth(true)}><CircleUserRound/></button></aside>
   <main className="main-area">

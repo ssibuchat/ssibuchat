@@ -61,7 +61,8 @@ This is the live delivery register for the A+B+C mandate. A phase is complete on
 ### Still required
 - [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
 - [x] Leased outbox dispatcher, idempotent delivery-job fan-out, exponential retry/backoff and dead-letter state.
-- [ ] Activate scheduled worker invocation after Vercel plan, CRON_SECRET and production environment are verified; implement provider delivery consumer and sent/failed callbacks.
+- [x] Add authenticated Vercel Cron endpoint at `/api/cron/outbox`, bounded batch execution and five-minute `vercel.json` schedule; automated endpoint tests added. This cadence requires Pro/Enterprise and is not considered operationally active until the independent Production project has the required plan and `CRON_SECRET` configured and a production invocation is observed.
+- [ ] Verify scheduled production invocations and add provider delivery consumer, push provider, delivery preferences, sent/failed callbacks and operational alerting.
 - [ ] Push realtime, typing/presence, cursor sync, reconnect and polling fallback.
 - [x] Group creator/admin roles, member listing, member add/remove, admin promotion and group title changes with server-side authorization.
 - [x] Secure group invite tokens stored only as hashes, with expiry, use limits, revocation and optional admin approval for join requests.

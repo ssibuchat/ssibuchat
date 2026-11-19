@@ -321,3 +321,20 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Tests cover call membership, join, offer signal routing, oversized payload rejection, leave and end lifecycle.
 - Latest GitHub Actions run [44363979047](https://github.com/ssibuchat/ssibuchat/actions/runs/44363979047) passed: npm ci; 48 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
 - Remaining Calls acceptance: production TURN relay deployment, push/realtime signaling workers (client currently polls), group-call media topology, reconnect/QoS and browser/device end-to-end testing. No production call acceptance has been performed.
+
+
+## Durable outbox worker invocation — 2026-11-18
+
+- Wired the existing leased outbox dispatcher into `POST /api/internal/workers/outbox`.
+- The worker route is exempted from browser Origin checks only because it requires a configured high-entropy bearer secret and constant-time comparison; no session cookie or admin role can invoke it.
+- Batch size is bounded to 1–100 (default 50); worker returns claimed/processed/retried/dead-lettered/skipped counts.
+- Added `SSIBUCHAT_WORKER_SECRET` to the independent deployment environment template.
+- Added route tests for unauthorized rejection and authorized bounded execution.
+- Existing worker tests cover idempotent recipient fan-out, leases, retry/backoff and dead-letter behavior.
+- GitHub Actions run [44473607639](https://github.com/ssibuchat/ssibuchat/actions/runs/44473607639) passed: npm ci; 50 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- This does not mean scheduled invocation is live: configure a scheduler/cron with the same secret only after Vercel plan, project and environment are verified. Delivery jobs still need a push/email/SMS provider consumer and callbacks.
+
+## Current Calls and Media status correction
+
+- Media: S3-compatible SigV4 private upload/download, ownership validation, object HEAD verification and fail-closed malware scanning are implemented and tested. Production provider configuration, transcoding, thumbnails, quotas, retention and lifecycle acceptance remain outstanding.
+- Calls: participant-authorized WebRTC signaling and direct browser audio/video UI are implemented and tested. Production TURN, realtime push, group-call media, reconnect/QoS and device acceptance remain outstanding.

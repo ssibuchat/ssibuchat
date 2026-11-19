@@ -89,6 +89,22 @@ export async function routeWorkspaces(req, res, db, principal, path) {
     await activity(db,principal.tenantId,workspaceId,principal._id,"workspace.member.remove",childId,"A workspace member was removed");
     return json(res,200,{ok:true,removed:true});
   }
+  if (section === "documents" && childId && suffix === "comments" && (req.method === "GET" || req.method === "POST")) {
+    const documentId=new ObjectId(childId);
+    const document=await db.collection("workspaceDocuments").findOne({_id:documentId,tenantId:principal.tenantId,workspaceId,deletedAt:{$exists:false}});
+    if(!document)return json(res,404,{ok:false,error:"document_not_found"});
+    if(req.method==="GET"){
+      const rows=await db.collection("workspaceDocumentComments").find({tenantId:principal.tenantId,workspaceId,documentId,deletedAt:{$exists:false}}).sort({createdAt:1}).limit(200).toArray();
+      return json(res,200,{ok:true,comments:rows.map(row=>({id:String(row._id),authorId:String(row.authorId),text:row.text,createdAt:row.createdAt,updatedAt:row.updatedAt}))});
+    }
+    if(!(await writeAllowed(db,res,principal,"workspace-comment",60)))return;
+    const body=await readBody(req),text=safeText(body.text,4000);
+    if(!text)return json(res,400,{ok:false,error:"comment_text_required"});
+    const comment={tenantId:principal.tenantId,workspaceId,documentId,authorId:principal._id,text,createdAt:now(),updatedAt:now()};
+    const created=await db.collection("workspaceDocumentComments").insertOne(comment);
+    await activity(db,principal.tenantId,workspaceId,principal._id,"workspace.document.comment",created.insertedId,"A shared document received a comment");
+    return json(res,201,{ok:true,comment:{id:String(created.insertedId),authorId:String(principal._id),text,createdAt:comment.createdAt}});
+  }
   if (section === "documents" && req.method === "GET" && !childId) {
     const rows=await db.collection("workspaceDocuments").find({tenantId:principal.tenantId,workspaceId,deletedAt:{$exists:false}}).sort({updatedAt:-1}).limit(100).toArray();
     return json(res,200,{ok:true,documents:rows.map(row=>({id:String(row._id),title:row.title,version:row.version,updatedAt:row.updatedAt,updatedBy:String(row.updatedBy||row.createdBy)}))});

@@ -89,3 +89,12 @@ The independent account-email service now reads activated runtime-vault entries 
 To activate live email configuration, first provision `SSIBUCHAT_CONFIG_ENCRYPTION_KEY` in the independent server environment, then add the three keys above in MAC with destination `runtime` and the correct environment. Saving a runtime entry activates it. The next account-email operation reads the new values without requiring an application redeployment. Provider credentials must still be valid at Resend; no provider account or secret has been provisioned by this code change.
 
 This is an initial service-by-service adoption, not a claim that all application modules now consume the runtime vault. Other providers, object storage, AI, TURN, scheduler credentials and build-time variables still require their own explicit adapters and tests.
+
+
+## Live runtime configuration adoption — media storage and scanning
+
+The media upload, completion, download and deletion handlers now resolve active runtime-vault values for the S3-compatible object-storage endpoint, bucket, region, access key, secret key, optional session token, malware scanner URL and scanner token. Runtime values override environment bootstrap values on each media operation. The S3 signer receives an explicit server-side configuration object; credentials are not copied into browser code. If the vault encryption key is absent, existing environment configuration remains the fallback.
+
+To activate this path, provision the independent `SSIBUCHAT_CONFIG_ENCRYPTION_KEY` and add the required storage/scanner keys in MAC using destination `runtime` and the matching environment. The object store and scanner must be reachable and configured with least-privilege access. A scanner result must explicitly be `clean` before an uploaded asset becomes available; pending or failed scans do not grant download access.
+
+This change does not itself provision an object-storage bucket, scanner service, CDN, transcoder, lifecycle policy or production credentials. Verify upload, HEAD metadata validation, clean/infected/pending scanner outcomes, download authorization and deletion against the real provider before production acceptance.

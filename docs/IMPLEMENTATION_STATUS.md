@@ -401,5 +401,5 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Migrated independent media upload, completion, download and deletion operations to resolve active encrypted runtime values.
 - Adopted keys: `SSIBUCHAT_S3_ENDPOINT`, `SSIBUCHAT_S3_BUCKET`, `SSIBUCHAT_S3_REGION`, `SSIBUCHAT_S3_ACCESS_KEY_ID`, `SSIBUCHAT_S3_SECRET_ACCESS_KEY`, optional `SSIBUCHAT_S3_SESSION_TOKEN`, `SSIBUCHAT_MEDIA_SCAN_URL` and `SSIBUCHAT_MEDIA_SCAN_TOKEN`.
 - Added tests for environment fallback, encrypted runtime precedence, storage readiness and signed upload URL generation.
-- The account-email runtime configuration increment passed CI at [run 44541831135](https://github.com/ssibuchat/ssibuchat/actions/runs/44541831135). Media runtime changes are a later increment and still require their own CI run.
+- Account-email runtime configuration passed CI at [run 44541831135](https://github.com/ssibuchat/ssibuchat/actions/runs/44541831135). The media runtime increment passed dependency installation, tests, production dependency audit and build at [run 44542043157](https://github.com/ssibuchat/ssibuchat/actions/runs/44542043157).
 - Real provider provisioning, scanner acceptance, transcoding, thumbnails, CDN and retention remain outstanding.

@@ -437,3 +437,10 @@ This branch is under review and must pass the repository's complete CI workflow 
 - Reused the existing tenant/user-scoped notification APIs; no PTU identity or MAC dependency was introduced.
 - GitHub Actions CI [run 44865974133](https://github.com/ssibuchat/ssibuchat/actions/runs/44865974133) passed: `npm ci`, `npm test`, production dependency audit and `npm run build`.
 - Browser-level interaction, screen-reader/accessibility and realtime/push acceptance remain open; this increment is not production deployment evidence.
+
+
+## Notification navigation correctness follow-up — 2026-11-20
+
+- Notification selection now resolves its destination thread from the freshly fetched thread list rather than potentially stale React state.
+- GitHub Actions [run 44866089989](https://github.com/ssibuchat/ssibuchat/actions/runs/44866089989) passed on code head `9e134e92cbbdd60725cc87bf9f3e9f5cca2a34a1`: `npm ci`, `npm test`, production dependency audit and `npm run build`.
+- This validates automated tests/build only; browser E2E and accessibility testing are still required.

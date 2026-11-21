@@ -1,81 +1,239 @@
-# SsibuChat Implementation Roadmap
+# SsibuChat — Complete Implementation Roadmap and Acceptance Register
 
-This roadmap is the complete delivery register. A phase is not complete because a screen exists; it is complete only when its acceptance checks pass.
+This is the live delivery register for the A+B+C mandate. A phase is complete only when implementation, security, tests, operational configuration and acceptance criteria are all satisfied. A screen, API stub or draft PR is not production completion.
+
+## A+B+C governance invariants
+
+1. Upgrade PTU-hosted SsibuChat in `payteamuniversity/payteam`, preserving PTU authentication, routes, integrations and MAC authority for PTU testers.
+2. Build independent SsibuChat in `ssibuchat/ssibuchat`, with independent identity, database, admin and tester controls.
+3. Keep the deployments isolated: separate secrets, sessions, databases, releases, monitoring and rollback. No silent cross-deployment changes.
+4. PTU MAC must never authorize independent testers. Independent admin must never replace PTU MAC for PTU testers.
+5. Provider-dependent or regulated functions remain unavailable until provider credentials, verification, compliance and runtime acceptance are complete.
 
 ## Phase 0 — Baseline, governance and safety
-- [x] Confirm A+B+C: PTU upgrade, independent build, both deployments maintained.
-- [x] Establish PTU MAC vs independent admin tester-control boundary.
-- [x] Inspect PTU source and record known product/security gaps.
-- [ ] Verify live Vercel projects, domains, env names and deployment ownership.
-- [ ] Verify MongoDB Atlas projects, users, network rules, backups and indexes.
-- [ ] Establish threat model, data inventory, SLOs, incident owner and release checklist.
 
-## Phase 1 — Independent foundation
-- [x] Independent Vite application, Mongo connection utility, API health endpoint and Vercel configuration (runtime deployment not yet configured).
-- [x] Independent account registration, password hashing, login/logout and opaque server-side sessions; one-time admin bootstrap endpoint.\n- [ ] Account recovery, email verification, MFA and device/session management.
-- [x] Independent tester policy and admin controls; disabled by default and enforced server-side, with session revocation when switched off. No PTU MAC dependency.
-- [ ] Tenant/membership model, schema migrations, audit events and rate limiting.
-- [x] GitHub Actions CI for unit tests and production build.\n- [ ] Commit a dependency lockfile and switch CI/release installs to `npm ci`.\n- [ ] Add lint, typecheck, integration/E2E tests and resolve the dev-toolchain Picomatch advisory when a patched release is available.
-- [ ] Accessibility and responsive design baseline (WCAG 2.2 AA target).
+- [x] Confirm A+B+C architecture and deployment boundary.
+- [x] Inspect both GitHub repositories and record the independent repository baseline.
+- [x] Record PTU MAC vs independent admin tester-control boundary.
+- [x] Create architecture, global product audit, roadmap, security, operations and implementation-status documents.
+- [ ] Verify live Vercel projects, domains, environment names, owners and production deployment targets.
+- [ ] Verify both MongoDB Atlas projects, users, network rules, backups, restore capability and indexes.
+- [ ] Establish named operational owners, threat model, data inventory, SLOs, incident response and release approval process.
+- [ ] Establish deployment-specific smoke tests and cross-deployment contract tests.
 
-## Phase 2 — Secure Connect core
-- [x] Initial direct/group thread creation APIs, tenant-scoped username discovery, thread listing/history, and participant-authorized message submission; full delivery semantics and group UI remain pending.
-- [x] Sender- and tenant-scoped idempotent message writes.\n- [ ] Per-recipient delivery/read receipts, reliable fan-out, retries and dead-letter handling.
-- [ ] Reliable group fan-out, bounded retries and dead-letter handling.
-- [ ] Push-based realtime with cursor sync and polling fallback.
-- [ ] Contacts, username discovery, privacy, block/report and moderation.
-- [ ] Provider-authenticated inbound SMS with replay protection and idempotency.
-- [ ] Email/SMS adapter configuration and consent/opt-out.
+## Phase 1 — Independent identity, access and application foundation
+
+- [x] React/Vite independent application, Node API entry point, MongoDB connection and health endpoint.
+- [x] Independent account registration, scrypt password hashing, login/logout and opaque server-side sessions.
+- [x] One-time independent administrator bootstrap requiring deployment secrets.
+- [x] Independent tester accounts, enable/disable policy and session revocation; no PTU MAC dependency.
+- [x] Fail-closed same-origin checks for cookie-authenticated mutations, comparing scheme and host, with same-origin Referer fallback.
+- [x] Persistent MongoDB-backed throttling for bootstrap, registration, login, thread starts, message sends, module writes and AI requests.
+- [x] Owner/tenant-scoped module record boundaries and indexes.
+- [ ] Complete tenant membership/role model, schema-versioned migrations and admin audit UI.
+- [x] Email verification request/confirm and password reset request/confirm with expiring single-use tokens, hashed token storage, verified-email eligibility and session invalidation.
+- [ ] Configure Resend credentials, sender domain and app URL in independent staging/production; verify deliverability and recovery UX. Passkeys and security notifications remain pending.
+- [x] Active-session inventory and revoke-other-sessions endpoint/UI.
+- [x] TOTP MFA enrollment/confirmation, AES-256-GCM encrypted secrets, one-time recovery codes, login challenge verification, per-account attempt throttling, TOTP replay prevention and disable/revocation flow.
+- [x] Account-facing MFA setup, confirmation, one-time recovery-code display, MFA disable and active-session inventory/revocation UI.
+- [x] MFA API integration tests for login challenge success, single-use challenges, recovery-code consumption, invalid codes and cross-challenge TOTP replay prevention.
+- [x] Account-facing MFA setup, confirmation, recovery-code display and MFA disable UI; MFA API/database integration acceptance remains pending.
+- [ ] Distributed abuse controls for all sensitive endpoints, signup abuse, content/reporting and API quotas.
+- [x] GitHub Actions CI: latest identity/Work integration run [44359823249](https://github.com/ssibuchat/ssibuchat/actions/runs/44359823249) passed npm ci, 37 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+- [x] Production dependency audit on that validated commit: zero production dependency vulnerabilities.
+- [x] Commit a deterministic npm lockfile (lockfile v3) and switch CI installs to `npm ci`; validated with the lockfile-driven workflow run.
+- [ ] Reassess the four high-severity dev-toolchain findings involving picomatch when a patched upstream release is available; do not suppress or misrepresent them. Current lock resolves picomatch 4.0.7, which remains within the published affected range and no patched release is listed. These are development/build dependencies; npm audit --omit=dev reports zero production vulnerabilities. Track as a release risk, not a false clean bill.
+- [ ] Add lint, typecheck, API integration, browser E2E, accessibility and load tests.
+- [x] Verify current branch head `bdc8bdae3b19749e03199e410fbc5094a10a921f`: 15 tests passed, production build passed, and production dependency audit found zero vulnerabilities.
+- [ ] WCAG 2.2 AA audit, keyboard navigation, screen-reader checks, contrast, focus management and reduced-motion support.
+
+## Phase 2 — Connect
+
+### Delivered foundation
+- [x] Direct and group thread creation.
+- [x] Tenant-scoped username discovery.
+- [x] Thread listing and participant-authorized message history.
+- [x] Participant-authorized message submission.
+- [x] Idempotency keys for message submission.
+- [x] Retry handling that repairs thread summary/count and upserts the accepted-message outbox event.
+- [x] Unique outbox event identity index.
+
+### Still required
+- [x] Per-recipient accepted/delivered/read receipt records, sender receipt inspection and idempotent receipt upserts. Provider sent/failed states remain pending.
+- [x] Leased outbox dispatcher, idempotent delivery-job fan-out, exponential retry/backoff and dead-letter state.
+- [x] Add authenticated `/api/cron/outbox` endpoint, bounded batch execution, retry-safe worker integration and automated endpoint tests.
+- [x] Fan out accepted messages into an idempotent, tenant-scoped in-app notification inbox; expose bounded listing, unread counts and individual/bulk read actions.
+- [x] Add signed-in notification bell, unread count, responsive inbox panel, individual read/open and mark-all-read UI with periodic refresh; automated CI build/test passed, browser E2E/accessibility and realtime/push remain open.
+- [ ] Add realtime notification delivery, browser/mobile push providers, delivery preferences and sent/failed callbacks.
+- [x] Add GitHub Actions five-minute scheduler with manual dispatch, HTTPS endpoint validation, bearer-secret authentication and bounded batch invocation. Vercel Hobby rejected a five-minute native cron schedule, so `vercel.json` intentionally contains no unsupported cron entry.
+- [ ] Activate scheduler operationally: merge workflow to default branch, configure GitHub Actions secrets `SSIBUCHAT_CRON_URL` and `CRON_SECRET`, verify the matching secret in independent Vercel Production, run authorized smoke test and observe successful scheduled invocations.
+- [ ] Add provider delivery consumer, push provider, delivery preferences, sent/failed callbacks and operational alerting.
+- [ ] Push realtime, typing/presence, cursor sync, reconnect and polling fallback.
+- [x] Group creator/admin roles, member listing, member add/remove, admin promotion and group title changes with server-side authorization.
+- [x] Secure group invite tokens stored only as hashes, with expiry, use limits, revocation and optional admin approval for join requests.
+- [ ] Fine-grained member-role policies and history visibility controls.
+- [ ] Contacts, block/report, abuse moderation, privacy/discovery controls and user directory pagination.
+- [ ] Message edit/delete, reactions, replies, pins, search and export.
+- [ ] Attachment upload/download, malware scan and authorized previews.
+- [ ] Channels, communities, moderation, membership and publishing.
+- [ ] Provider-authenticated inbound SMS, replay protection, quotas and idempotent callback handling.
+- [ ] Email/SMS delivery adapters, recipient consent, opt-out and delivery logs.
+- [ ] E2EE protocol, audited cryptographic design, device identity, group key rotation and recovery model.
 
 ## Phase 3 — Media and status
-- [ ] Signed object-storage uploads and downloads.
-- [ ] MIME/size/checksum validation, malware scanning and thumbnail/transcode jobs.
-- [ ] Media/docs/links galleries and searchable metadata.
-- [ ] Status/stories, expiry, audience controls, moderation and retention.
-- [ ] Export/delete and media lifecycle tests.
 
-## Phase 4 — Calls
-- [ ] Authenticated WebRTC signaling and call lifecycle.
-- [ ] STUN/TURN deployment and regional connectivity testing.
-- [ ] Audio/video permission UX, device switching, reconnect and failure states.
-- [ ] Call abuse controls, blocking, reporting and privacy settings.
-- [ ] Load and network-quality tests.
+- [ ] Object-storage provider selection and separate deployment credentials.
+- [ ] Signed upload/download intents, size/MIME/checksum validation and ownership verification.
+- [x] Owner- and tenant-scoped media deletion using short-lived SigV4 DELETE URLs; metadata is marked deleted only after storage confirms deletion (or confirms object absence). Failure leaves metadata available for safe retry; tests cover cross-user denial and provider failure.
+- [ ] Enforce race-safe per-user/tenant storage quotas, abandoned-upload cleanup and usage accounting.
+- [ ] Malware scanning, thumbnail generation, transcoding, CDN and retention jobs.
+- [ ] Media/document/link galleries, search, sharing and revocation.
+- [ ] Status/stories, expiry enforcement, audience controls, moderation and abuse reporting.
+- [ ] Export/delete integration, scheduled retention enforcement and full media lifecycle tests.
 
-## Phase 5 — Work
-- [ ] Workspace, task, calendar, note and file domains.
-- [ ] Multi-tab workspace and configurable multi-card dashboard.
-- [ ] Contextual side panels, shared search and activity feed.
-- [ ] Collaboration roles and notification preferences.
+Current state: private binary upload, scanner-gated access and owner-scoped object deletion foundations are implemented; production storage/scanner configuration, quota accounting, media processing, retention and lifecycle acceptance remain open.
 
-## Phase 6 — Commerce and Finance
-- [ ] Business profiles and catalogues.
-- [ ] Orders, customer conversations and merchant tools.
-- [ ] Payment intent state machine and provider adapters.
-- [ ] Idempotent webhooks, reconciliation, receipts and dispute trail.
-- [ ] Country-by-country licensing/compliance review before financial launch.
+## Phase 4 — Voice and video calls
 
-## Phase 7 — AI
-- [ ] Opt-in assistant and model-provider abstraction.
-- [ ] Permission-aware retrieval and source citations.
-- [ ] Summaries, drafting and workflow actions with user confirmation.
-- [ ] Prompt-injection defenses, tenant isolation, privacy and usage limits.
+- [ ] Authenticated, short-lived WebRTC signaling and call lifecycle.
+- [ ] STUN/TURN provider and regional connectivity deployment.
+- [ ] Audio/video permissions, device selection, switching, reconnect and failure UX.
+- [ ] Ringing, call invitations, missed-call state and notifications.
+- [ ] Blocking, reporting, abuse controls and recording consent.
+- [ ] Network quality, concurrency, regional latency and mobile data tests.
 
-## Phase 8 — Security, scale and global readiness
-- [ ] OWASP ASVS 5.0 verification and OWASP API Top 10 coverage.
-- [ ] E2EE protocol design and independent security review before rollout.
-- [ ] Data retention, deletion, portability and backup restore drills.
-- [ ] Observability, alerting, incident response and audit exports.
-- [ ] Load, chaos, regional latency and accessibility testing.
-- [ ] Localization, time zones, low-bandwidth and offline resilience.
+Current state: direct one-to-one WebRTC signaling and browser call foundation implemented; TURN, push/ringing reliability, group media topology, reconnect/QoS and end-to-end device acceptance remain open.
 
-## Phase 9 — PTU parity and dual-deployment operations
-- [ ] Apply targeted PTU security fixes without replacing PTU auth/integrations. A draft, unmerged PTU PR currently contains the first authorization and MAC tester-policy changes.
-- [ ] Enforce MAC tester policy for PTU-hosted tester accounts only.
-- [ ] Verify PTU routes, Higher/ODEI OS links, UID/email/SMS and MAC controls.
-- [ ] Keep independent admin/tester policy isolated from PTU MAC.
-- [ ] Contract tests for any signed cross-product integration.
-- [ ] Release, rollback and migration runbooks for both deployments.
+## Phase 5 — Work and shared workspace
+
+### Delivered foundation
+- [x] Owner-scoped workspace, project, task and calendar-event APIs.
+- [x] Per-user dashboard preferences for layout, visible pillars and contextual panels.
+- [x] Initial Work UI for workspace/project/task/event records.
+
+### Still required
+- [ ] Cross-user workspace membership, invitations, roles and permission inheritance.
+- [ ] Shared documents, notes, files, comments and collaborative editing.
+- [ ] Multi-tab workspace, drag/drop configurable cards and responsive dashboard layout.
+- [ ] Contextual panels, shared search and activity feed.
+- [ ] Calendar recurrence, timezone correctness, reminders and external calendar integrations.
+- [ ] Assignment, notifications, mentions, task dependencies, workflow automation and audit history.
+- [ ] Collaboration concurrency, conflict handling and offline drafts.
+
+Current state: cross-user workspace membership, shared documents, optimistic version conflict handling, revision history, comments and activity feed APIs are implemented and tested. Shared files, realtime co-editing/presence, shared search and broader workflow automation remain outstanding.
+
+## Phase 6 — Commerce
+
+### Delivered foundation
+- [x] Owner-scoped business profiles and product catalogue records.
+- [x] Integer minor-unit prices and ISO currency validation.
+- [x] Server-calculated draft order snapshots with currency consistency checks.
+
+### Still required
+- [ ] Separate merchant, buyer and staff identities/roles; buyer-to-seller order ownership.
+- [ ] Public storefronts, discovery, catalogue variants, images, inventory and stock reservations.
+- [ ] Cart, checkout, shipping, tax, discounts, fulfilment, returns and refunds.
+- [ ] Merchant onboarding, verification, customer support and dispute workflows.
+- [ ] Payment-provider adapter, signed webhooks, idempotency and settlement reconciliation.
+- [ ] Country-specific consumer, tax, privacy and financial compliance review.
+
+Current state: foundational owner-scoped records and draft orders only. No checkout or payment collection is active.
+
+## Phase 7 — Finance
+
+### Delivered foundation
+- [x] Immutable bookkeeping-style records with integer minor-unit amount and ISO currency validation.
+
+### Still required
+- [x] Double-entry journal posting with balanced debit/credit validation, account ownership/currency validation, idempotency, trial balance aggregation and immutable reversal entries.\n- [ ] Authoritative cached balances, transaction state machine and reconciliation controls.
+- [ ] Wallet custody or payment provider selection and approval.
+- [ ] Payment intents, transfers, payout, refunds, chargebacks and reconciliation.
+- [ ] Receipts, statements, audit trail and dispute evidence.
+- [ ] KYC/AML, fraud monitoring, sanctions checks and country-by-country licensing.
+- [ ] Provider webhooks, signature verification, replay prevention and settlement verification.
+- [ ] Penetration tests, reconciliation drills and financial control review.
+
+Current state: tested double-entry bookkeeping ledger, trial balance and immutable reversal foundation. No wallet custody, bank account, payment rail or regulated financial service is active.
+
+## Phase 8 — AI
+
+### Delivered foundation
+- [x] Explicit per-user AI consent.
+- [x] Configurable OpenAI-compatible provider boundary.
+- [x] Provider absence fails closed; opt-out deletes stored AI conversation records.
+
+### Still required
+- [ ] Streaming responses, provider failover and per-user quotas.
+- [ ] Permission-aware retrieval with citations and source visibility.
+- [ ] Summarization, drafting, search and workflow actions with user confirmation.
+- [ ] Prompt-injection defenses, tool authorization and sandboxing.
+- [ ] Model governance, evaluation, moderation, retention and provider privacy review.
+- [ ] No private-data model training without explicit consent and clear product controls.
+
+Current state: opt-in chat adapter only; no retrieval, tools, citations or full governance.
+
+## Phase 9 — Security, privacy, reliability and global readiness
+
+- [x] Same-origin mutation checks.
+- [x] Persistent login/registration/bootstrap throttling.
+- [x] Production response security headers configured in Vercel.
+- [x] Owner/tenant-scoped records and module field allowlists.
+- [x] Immutable order/finance API records.
+- [ ] OWASP ASVS 5.0 verification and OWASP API Security Top 10 coverage.
+- [ ] Independent external penetration test and remediation.
+- [ ] Encryption/key management review and E2EE implementation.
+- [ ] Data export, deletion, retention, legal hold and consent workflows.
+- [ ] Backup/restore drills, regional recovery and business continuity.
+- [ ] Structured logs, metrics, traces, privacy-safe diagnostics and alerting.
+- [ ] Incident response, abuse handling, security notifications and vulnerability disclosure.
+- [ ] Load, chaos, failover and regional latency tests.
+- [ ] Localization, accessibility, time zones, low-bandwidth/offline resilience and data-cost controls.
+
+## Phase 10 — PTU compatibility and MAC governance
+
+- [x] Confirm PTU remains on its own repository, identity, integrations and database.
+- [x] Draft PTU security changes for membership checks, broadcast role restrictions, group unread count, demo tester policy and inbound SMS callback authentication.
+- [x] Add PTU unit tests for MAC tester policy and demo-password visibility.
+- [x] Add PTU persistent per-holder throttles for thread starts, message sends and broadcasts.
+- [x] Add a dedicated PTU validation workflow definition on the draft PR branch.
+- [x] Execute PTU tests, syntax checks and Vite build on GitHub Actions: 7 tests passed, all four server syntax checks passed, and Vite production build passed on PTU PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e`.
+- [ ] Verify Africa's Talking exact callback payload, retry behavior, secret handling and live sandbox.
+- [ ] Add broadcast quotas, recipient consent/opt-out and delivery audit.
+- [ ] Review all PTU route authorization and data migrations.
+- [ ] Confirm PTU MAC tester policy blocks only PTU seeded/demo accounts and never locks out the MAC operator or real accounts.
+- [ ] Validate existing PTU routes, Higher/ODEI OS links, UID/email/SMS, MAC controls and existing integrations.
+- [ ] Complete PTU staging smoke tests before merging or deployment.
+
+## Phase 11 — Dual-deployment release and operations
+
+- [ ] Verify independent Vercel project, domain, deployment ownership and environment variables.
+- [ ] Verify PTU Vercel project and production environment without exposing secrets.
+- [ ] Verify distinct MongoDB Atlas projects/databases and least-privilege users.
+- [ ] Separate session secrets, bootstrap secrets, provider credentials and storage buckets.
+- [ ] Contract tests for explicitly approved signed cross-product integrations only.
+- [ ] Separate preview, staging, production promotion and rollback workflows.
+- [ ] Confirm deployment to one repo cannot trigger the other Vercel project.
+- [ ] Health, authentication, tester-policy, messaging and isolation smoke tests on both deployments.
+- [ ] Backup restore and rollback rehearsal for both deployments.
+- [ ] Monitor each deployment independently with clear SLOs and incident ownership.
 
 ## Release gates
 
-**No production launch** until: tests pass; secrets are in the correct deployment; webhook verification is proven with the provider; backup restore is rehearsed; security/accessibility checks are documented; data migrations are reversible; monitoring and rollback are ready; and smoke tests pass on the actual deployment. Never merge or deploy PTU changes as a side effect of independent product work.
+No production promotion until the current commit passes CI, security review and staging acceptance; all required secrets and providers are configured in the correct deployment; external webhook behavior is verified; backup restore and rollback are rehearsed; accessibility and performance checks are recorded; data migrations are reversible; monitoring and incident response are ready; and the actual deployed application passes smoke tests.
+
+Do not merge a draft PR, enable public financial functionality, expose live demo passwords, or claim a provider-dependent feature is live without the corresponding verified acceptance evidence.
+
+
+## Phase 12 — Independent MAC infrastructure and configuration control plane
+
+- [x] Add admin-only configuration inventory and write-only encrypted secret/value storage.
+- [x] Encrypt values with AES-256-GCM using a dedicated deployment-held 32-byte key.
+- [x] Add configuration version history and administrative audit events.
+- [x] Add server-only active runtime configuration reader.
+- [ ] Provision the independent production vault key and rehearse encrypted backup and key rotation.
+- [ ] Add provider authorization lifecycle and least-privilege credentials for GitHub, Vercel, Namecheap, Bluehost and additional providers.
+- [ ] Implement provider-specific read/validate/write adapters, idempotent synchronization, drift detection and error recovery.
+- [ ] Wire runtime consumers to versioned dynamic configuration with schema validation, atomic activation and rollback.
+- [ ] Separate live runtime values from build-time variables and provider settings that require a deployment or service restart.
+- [ ] Add MAC controls for provider connection health, permission scope, configuration sync history and change approvals.
+- [ ] Test no-secret-leak behavior, provider failures, concurrency, key loss/restore, rollback and cross-deployment isolation.

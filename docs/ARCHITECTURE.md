@@ -83,3 +83,17 @@ WebRTC media flows peer-to-peer where possible, through TURN when required. Sign
 ## 9. Integration contracts
 
 PTU compatibility is an adapter, never a shared identity system. Use signed, timestamped requests with audience, scope, expiry, replay protection and key rotation. Map only the minimum claims required. The independent service must continue operating when PTU is offline; PTU must continue operating when independent SsibuChat is offline.
+
+
+## 10. Current implementation contracts (foundation branch)
+
+The current API implementation is a modular monolith with owner- and tenant-scoped module records:
+- Connect: `/api/threads`, `/api/messages`, `/api/people`.
+- Work: `/api/modules/workspaces`, `projects`, `tasks`, `events`.
+- Commerce: `/api/modules/businesses`, `products`, `orders`. Orders are draft snapshots only.
+- Finance: `/api/modules/finance`. Immutable bookkeeping records in integer minor units; no wallet custody or payment settlement.
+- Media: `/api/modules/media`. Metadata only; binary storage and signed uploads are provider-dependent.
+- AI: `/api/ai/consent`, `/api/ai/chat`. Requires explicit user opt-in and server-side OpenAI-compatible provider configuration.
+- Workspace: `/api/workspace/preferences`. Personal dashboard preferences; cross-user shared workspace membership is not yet available.
+
+These service contracts are foundational and do not imply that provider-dependent production capabilities are complete.

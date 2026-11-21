@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { runMigrations } from "./migrations.js";
 let clientPromise;
 let indexesPromise;
 export async function getDb() {
@@ -15,13 +16,65 @@ export async function ensureIndexes(db) {
   if (!indexesPromise) indexesPromise = Promise.all([
     db.collection("users").createIndex({ emailNormalized: 1 }, { unique: true, sparse: true }),
     db.collection("users").createIndex({ usernameNormalized: 1 }, { unique: true, sparse: true }),
+    db.collection("schemaMigrations").createIndex({ id: 1 }, { unique: true }),
+    db.collection("authTokens").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("authTokens").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("sessions").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("sessions").createIndex({ userId: 1, expiresAt: 1 }),
     db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("mfaChallenges").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("mfaChallenges").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("threads").createIndex({ tenantId: 1, participantIds: 1, updatedAt: -1 }),
     db.collection("messages").createIndex({ tenantId: 1, threadId: 1, createdAt: -1 }),
     db.collection("messages").createIndex({ tenantId: 1, senderId: 1, idempotencyKey: 1 }, { unique: true, sparse: true }),
+    db.collection("messageReceipts").createIndex({ tenantId: 1, messageId: 1, userId: 1 }, { unique: true }),
+    db.collection("messageReceipts").createIndex({ tenantId: 1, userId: 1, status: 1, updatedAt: -1 }),
+    db.collection("messageReactions").createIndex({ tenantId: 1, messageId: 1, userId: 1, emoji: 1 }, { unique: true }),
+    db.collection("messageReactions").createIndex({ tenantId: 1, messageId: 1 }),
+    db.collection("groupInvites").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("groupInvites").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("groupJoinRequests").createIndex({ tenantId: 1, inviteId: 1, userId: 1, status: 1 }, { unique: true, partialFilterExpression: { status: "pending" } }),
+    db.collection("groupJoinRequests").createIndex({ tenantId: 1, threadId: 1, status: 1, createdAt: -1 }),
+    db.collection("blocks").createIndex({ tenantId: 1, userId: 1, blockedUserId: 1 }, { unique: true }),
+    db.collection("reports").createIndex({ tenantId: 1, status: 1, createdAt: -1 }),
+    db.collection("reports").createIndex({ reporterId: 1, targetType: 1, targetId: 1 }),
+    db.collection("outboxEvents").createIndex({ tenantId: 1, type: 1, aggregateId: 1 }, { unique: true, partialFilterExpression: { aggregateId: { $type: "objectId" } } }),
+    db.collection("outboxEvents").createIndex({ processedAt: 1, nextAttemptAt: 1, leaseUntil: 1, createdAt: 1 }),
+    db.collection("deliveryJobs").createIndex({ tenantId: 1, messageId: 1, userId: 1 }, { unique: true }),
+    db.collection("deliveryJobs").createIndex({ state: 1, nextAttemptAt: 1, createdAt: 1 }),
+    db.collection("notifications").createIndex({ tenantId: 1, userId: 1, messageId: 1 }, { unique: true }),
+    db.collection("notifications").createIndex({ tenantId: 1, userId: 1, createdAt: -1 }),
+    db.collection("notifications").createIndex({ tenantId: 1, userId: 1, readAt: 1 }),
     db.collection("memberships").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
-    db.collection("auditEvents").createIndex({ tenantId: 1, createdAt: -1 })
+    db.collection("auditEvents").createIndex({ tenantId: 1, createdAt: -1 }),
+    db.collection("ledgerAccounts").createIndex({ tenantId: 1, ownerId: 1, code: 1, currency: 1 }, { unique: true }),
+    db.collection("journalEntries").createIndex({ tenantId: 1, ownerId: 1, idempotencyKey: 1 }, { unique: true }),
+    db.collection("journalEntries").createIndex({ tenantId: 1, ownerId: 1, createdAt: -1 }),
+    db.collection("journalEntries").createIndex({ tenantId: 1, ownerId: 1, reversalOf: 1 }, { unique: true, sparse: true }),
+    db.collection("orders").createIndex({ tenantId: 1, buyerId: 1, idempotencyKey: 1 }, { unique: true, sparse: true }),
+    db.collection("orders").createIndex({ tenantId: 1, merchantId: 1, createdAt: -1 }),
+    db.collection("paymentIntents").createIndex({ tenantId: 1, orderId: 1, idempotencyKey: 1 }, { unique: true }),
+    db.collection("paymentIntents").createIndex({ tenantId: 1, orderId: 1, status: 1 }),
+    db.collection("mediaAssets").createIndex({ storageKey: 1 }, { unique: true }),
+    db.collection("mediaAssets").createIndex({ tenantId: 1, ownerId: 1, createdAt: -1 }),
+    db.collection("calls").createIndex({ tenantId: 1, participantIds: 1, status: 1, expiresAt: 1 }),
+    db.collection("callParticipants").createIndex({ tenantId: 1, callId: 1, userId: 1 }, { unique: true }),
+    db.collection("callSignals").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("callSignals").createIndex({ tenantId: 1, callId: 1, recipientId: 1, createdAt: 1 }),
+    ...["workspaces","projects","tasks","calendarEvents","businesses","products","orders","financeRecords","mediaAssets"].map(name => db.collection(name).createIndex({ tenantId: 1, ownerId: 1, updatedAt: -1 })),
+    db.collection("workspacePreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
+    db.collection("workspaceMembers").createIndex({ tenantId: 1, workspaceId: 1, userId: 1 }, { unique: true }),
+    db.collection("workspaceInvites").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("workspaceInvites").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("workspaceDocuments").createIndex({ tenantId: 1, workspaceId: 1, updatedAt: -1 }),
+    db.collection("workspaceDocumentRevisions").createIndex({ tenantId: 1, workspaceId: 1, documentId: 1, version: 1 }, { unique: true }),
+    db.collection("workspaceDocumentComments").createIndex({ tenantId: 1, workspaceId: 1, documentId: 1, createdAt: 1 }),
+    db.collection("workspaceActivity").createIndex({ tenantId: 1, workspaceId: 1, createdAt: -1 }),
+    db.collection("aiPreferences").createIndex({ tenantId: 1, userId: 1 }, { unique: true }),
+    db.collection("aiConversations").createIndex({ tenantId: 1, userId: 1, createdAt: -1 }),
+    db.collection("rateLimits").createIndex({ key: 1 }, { unique: true }),
+    db.collection("rateLimits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   ]).catch((error) => { indexesPromise = null; throw error; });
   await indexesPromise;
+  await runMigrations(db);
 }

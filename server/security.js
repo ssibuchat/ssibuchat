@@ -1,9 +1,14 @@
-import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 const scrypt = promisify(scryptCallback);
 const COOKIE = "ssibu_session";
 const DAY = 86400000;
 export const hashToken = (value) => createHmac("sha256", process.env.SSIBUCHAT_SESSION_SECRET || "development-only-session-secret").update(String(value)).digest("hex");
+export function constantTimeEqual(left, right) {
+  const a = Buffer.from(String(left ?? ""));
+  const b = Buffer.from(String(right ?? ""));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const derived = await scrypt(String(password), salt, 64);
@@ -43,9 +48,20 @@ export async function currentPrincipal(req, db) {
   return user ? { user, session } : null;
 }
 export function safeText(value, max = 500) { return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max); }
+/**
+ * Browser mutations must prove their origin. An absent Origin is not implicitly
+ * trusted: use Referer as a same-origin fallback for clients that omit Origin.
+ */
 export function isSameOrigin(req) {
-  const origin = req.headers?.origin; if (!origin) return true;
-  try { return Boolean(req.headers?.host && new URL(origin).host === req.headers.host); } catch { return false; }
+  const host = String(req.headers?.host || "").trim().toLowerCase();
+  const source = req.headers?.origin || req.headers?.referer;
+  const forwardedProto = String(req.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const protocol = forwardedProto || (req.socket?.encrypted ? "https" : "http");
+  if (!host || !source || source === "null" || !["http", "https"].includes(protocol)) return false;
+  try {
+    const parsed = new URL(source);
+    return parsed.host.toLowerCase() === host && parsed.protocol === protocol + ":";
+  } catch { return false; }
 }
 export function json(res, status, body) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(body)); }
 export async function readBody(req, maxBytes = 256000) {

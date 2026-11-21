@@ -43,3 +43,404 @@ The PR is **not merged**. GitHub currently reports the draft PR as mergeable/cle
 ## Production gate
 
 The independent app is a tested buildable foundation, not a production-ready super-app. Do not announce production availability or enable public signups until dependency advisories are resolved, the deployment environment is configured, end-to-end/security testing passes and backup/rollback procedures are rehearsed.
+
+
+## Additional independent implementation (foundation branch)
+
+Branch: `implementation/superapp-foundations`.
+
+- Added fail-closed Origin/Referer checks to the independent application branch; missing and opaque origin metadata are rejected. The original control-character sanitizer is preserved.
+- Added owner/tenant-scoped module APIs for Workspaces, Projects, Tasks, Events, Businesses, Products, Orders, Finance records and Media metadata.
+- Added draft order snapshots with server-calculated line totals and currency consistency checks.
+- Added immutable financial record policy and integer minor-unit validation.
+- Added per-user workspace dashboard preferences.
+- Added explicit AI consent and a configurable OpenAI-compatible chat adapter. No AI request is sent until consent is enabled and provider secrets/model are configured.
+- Added collection indexes and validation tests for field allowlists, task enums, money values and control-character stripping.
+- Added security, architecture and operations documentation.
+
+This branch is under review and must pass the repository's complete CI workflow and security review before merge. Provider-dependent capabilities and the production gates listed above remain incomplete.
+
+
+## Follow-on hardening and interface work
+
+- Added persistent MongoDB-backed rate limits for admin bootstrap, registration and login.
+- Added responsive authenticated pillar workspaces for Work, Commerce, Finance, Media and AI.
+- Added record identifiers to the UI so owner-scoped records can be linked between projects, products and orders.
+- Latest fully validated CI head before the final UI identifier adjustment: `bfc81f4d5279aedc41b240d0dab5b2842432bba0`. GitHub Actions: 14 tests passed, Vite build passed, production dependency audit found 0 vulnerabilities.
+- Full npm audit still reports 4 high-severity findings in development/build dependencies through picomatch <=4.0.7. The published upstream advisory currently has no patched version; these are not production runtime dependencies. Recheck before each release.
+- The latest UI identifier adjustment is committed separately and its CI run must complete before merge.
+
+
+## Connect retry reliability correction
+- Message idempotency conflicts now reject reuse of a key for a different thread/body.
+- A retry after a partial message write repairs thread summary/count and upserts the corresponding outbox event instead of returning early and silently losing the event.
+- Added a unique outbox identity index to prevent duplicate accepted-message events.
+- The new retry/outbox correction is committed after the last completed CI run and is awaiting its own validation.
+
+
+## Latest follow-on security and UX changes
+- Added rate limits to module writes, workspace preference changes, AI consent/chat, thread creation and message sends.
+- Added comma-separated participant entry for creating group conversations in the Connect UI.
+- Added production CSP, HSTS, frame, referrer, permissions and cross-origin opener headers in Vercel configuration.
+- These latest rate-limit and header/UI changes require the current PR head's CI and preview checks before approval.
+
+
+## Current CI confirmation
+- Current reviewed branch head: `31e165c042ad895b5299e83b76180bd885565b8b`.
+- GitHub Actions `verify`: 14 tests passed, 0 failed; Vite production build passed; production dependency audit passed with zero production vulnerabilities.
+- The full audit still reports four high-severity development-toolchain advisories through picomatch <=4.0.7. The advisory has no confirmed patched version in the current upstream record; production dependency audit is clean, but the development-toolchain finding remains tracked.
+- Vercel Preview Comments check passed with zero unresolved feedback. Preview URL exists; authenticated end-to-end verification against a configured MongoDB and provider environment remains outstanding.
+
+
+## PTU branch validation
+- PTU security PR head `a660881be0a9fdeaab8ed6ccb5e58bf689c1a77e` passed GitHub Actions run [44330021713](https://github.com/payteamuniversity/payteam/actions/runs/44330021713): 7 tests passed, all four server syntax checks passed, `npm ci` passed and Vite production build passed.
+- PTU branch remains a draft. Africa's Talking callback sandbox verification, broadcast consent/opt-out, staging smoke tests and operator acceptance remain release gates.
+- PTU main and production remain unchanged.
+
+
+## Current independent validation (latest code)
+- Current validated code head: `bdc8bdae3b19749e03199e410fbc5094a10a921f`.
+- GitHub Actions run [44330325713](https://github.com/ssibuchat/ssibuchat/actions/runs/44330325713) passed: 15 tests, 0 failures; Vite production build passed; production dependency audit found zero vulnerabilities.
+- Same-origin enforcement now compares both scheme and host, with regression coverage for HTTPS downgrade rejection.
+- The full development dependency audit continues to report four high-severity picomatch-related findings; production dependencies remain clean. Upstream currently lists picomatch versions through 4.0.7 as affected without a confirmed patched release.
+
+- PTU rate limiting was extracted into a testable MongoDB-backed helper; the new tests cover threshold enforcement, actor hashing and invalid configuration.
+
+
+## Phase 1 execution update — 2026-11-18
+
+- Added independent TOTP MFA enrollment, confirmation, login challenge, disable and session-revocation paths.
+- MFA TOTP secrets use AES-256-GCM with a separate SSIBUCHAT_MFA_ENCRYPTION_KEY; recovery codes are stored as keyed hashes and consumed once.
+- Added three focused MFA tests, including the RFC 6238 SHA-1 reference vector and authenticated-encryption tamper rejection.
+- Committed lockfile v3 and changed CI from npm install to npm ci. Latest lockfile-driven GitHub Actions run [44353196457](https://github.com/ssibuchat/ssibuchat/actions/runs/44353196457) passed: 19 tests, 0 failures; production audit found 0 vulnerabilities; Vite build passed.
+- Full dependency audit still reports four high-severity development-toolchain findings rooted in picomatch 4.0.7. The published advisory currently lists no patched release; no unsafe override or audit suppression was applied. Production dependency audit remains clean.
+- MFA API/database integration tests, account-facing MFA setup UI, email verification, recovery workflow, and broader identity/tenant governance remain open acceptance work.
+- PTU MAC authority and independent tester-policy boundary remain unchanged. No merge to the default branch and no production deployment occurred.
+
+
+## Phase 1 identity completion increment — 2026-11-18
+
+- Added account-facing authenticator setup and confirmation, manual secret/provisioning URI presentation, one-time recovery-code display, MFA disable, and login challenge verification.
+- Added TOTP replay prevention across distinct login challenges by atomically advancing the last accepted time-step.
+- Added authenticated session inventory and a revoke-other-sessions control; the current session remains active.
+- Added route-level MFA integration tests with a deterministic in-memory database adapter: successful login challenge, single-use challenge, one-time recovery-code consumption, invalid code rejection and TOTP replay rejection.
+- Latest CI run [44354086821](https://github.com/ssibuchat/ssibuchat/actions/runs/44354086821) passed: npm ci; 23 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Remaining Phase 1 acceptance: run the MFA/session flows against a real staging MongoDB/Vercel environment; email verification, password recovery, passkeys, tenant membership/roles, versioned migrations, admin audit UI and security notifications.
+
+
+## Phase 2 Connect execution increment — 2026-11-18
+
+- New group threads record a creator/admin; added server-authorized member listing, member add/remove, admin promotion and group-title changes. Existing groups fall back to their creator as the initial admin.
+- Added per-recipient message receipt records with idempotent upserts. Reading thread history advances accepted receipts to delivered; an explicit read endpoint advances receipts to read; senders can inspect per-recipient receipt state.
+- Added indexes for unique tenant/message/recipient receipt identity and recipient/status queries.
+- Added Connect API integration tests for accepted → delivered → read receipt progression, sender receipt inspection, group admin authorization, member addition, admin promotion and member removal.
+- GitHub Actions run [44354724227](https://github.com/ssibuchat/ssibuchat/actions/runs/44354724227) passed: npm ci; 25 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Still outstanding in Connect: durable outbox fan-out worker/retry/dead-letter processing, provider sent/failed delivery states, push realtime/presence, notifications, moderation/report/block, attachments/scanning, search/edit/delete/reactions and E2EE.
+
+
+## Phase 2 Connect outbox worker increment — 2026-11-18
+
+- Added a lease-based outbox dispatcher that atomically claims events, fans message-accepted events into idempotent per-recipient delivery jobs, marks processed events, retries failures with exponential backoff, and dead-letters after ten attempts.
+- Added unique delivery-job and pending-outbox indexes.
+- Added an authenticated Vercel cron handler requiring CRON_SECRET and a bounded function configuration.
+- Added tests for per-recipient fan-out, event completion, retry/backoff, dead-lettering and cron bearer-secret/method validation.
+- Latest GitHub Actions run [44355344563](https://github.com/ssibuchat/ssibuchat/actions/runs/44355344563) passed: npm ci; 28 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Scheduler activation is intentionally not configured yet: Vercel Hobby supports daily cron cadence while Pro/Enterprise support per-minute execution; the actual project plan and CRON_SECRET must be verified before choosing a schedule. The endpoint and worker code are implemented, but automated scheduled delivery is not yet live.
+- Delivery jobs are queued only. No SMS/push/email provider dispatch or sent/failed delivery state is claimed.
+
+
+## Phase 2 Connect group-invite increment — 2026-11-18
+
+- Added secure 256-bit group invite tokens; only HMAC token hashes are persisted.
+- Invites have bounded expiry (1–168 hours), bounded uses (1–100), optional admin approval, and admin revocation/listing.
+- Added join-request submission, pending request listing and admin approve/deny controls. Approved joins atomically consume a use and add the user to the group.
+- Added TTL, unique pending-request and listing indexes.
+- Added integration coverage for invite creation, approval-required join, pending request visibility and admin approval/member addition.
+- GitHub Actions run [44356028441](https://github.com/ssibuchat/ssibuchat/actions/runs/44356028441) passed: npm ci; 29 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
+- Group fine-grained member-role policy and history visibility remain pending. Vercel preview build currently reports an account build-rate-limit failure; no new preview or production deployment was created.
+
+
+## Phase 2 Connect moderation and message controls — 2026-11-18
+
+- Added per-user direct-conversation block/unblock list; both direct thread creation and direct message sending reject blocked pairs.
+- Added rate-limited reports for user, message and group targets; reports are visible to tenant admins and can be moved to reviewing/resolved/dismissed.
+- Added sender-only message editing, sender/group-admin soft deletion, allowlisted emoji reactions with per-user uniqueness, and participant-scoped message search with bounded query length/results.
+- Added indexes for block lists, moderation queues and message reactions.
+- Added API tests for block enforcement, report submission/admin review, edit/delete, reaction add/remove and participant-scoped search.
+- Latest CI run [44357042708](https://github.com/ssibuchat/ssibuchat/actions/runs/44357042708) passed: npm ci; 31 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Group-wide block behavior, moderation actions/appeals, binary attachments and malware scanning remain open.
+
+
+## Phase 1 schema/tenant foundation and Phase 3 Work increment — 2026-11-18
+
+- Added a leased, idempotent schema migration registry and tenant membership backfill. Existing users receive a tenantId/schemaVersion and membership record; existing workspace owners receive workspace owner memberships. New standard/admin/tester accounts create memberships at registration.
+- Added shared workspace invitations bound to an existing intended user, with hashed single-use token, seven-day expiry and editor/viewer roles.
+- Added workspace member listing, owner-controlled role changes/removal, shared documents, optimistic version checks, append-only revision snapshots and workspace activity feed.
+- Viewers can read shared documents/history/activity; editors can create/update documents; owners manage membership and invitations.
+- Added indexes for schema migrations, workspace memberships/invites/documents/revisions/activity.
+- Added tests for migration idempotency/backfill, invitation acceptance, role enforcement, stale-version conflict, revision history and activity events.
+- Latest GitHub Actions run [44358121172](https://github.com/ssibuchat/ssibuchat/actions/runs/44358121172) passed: npm ci; 34 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Remaining Work acceptance: real-time co-editing/CRDT, comments, granular document permissions, and shared project/task/calendar CRUD. Current projects/tasks/calendar modules remain owner-scoped.
+
+
+## Phase 1 email recovery and Work UI increment — 2026-11-18
+
+- Added a Resend transactional email adapter; delivery requires RESEND_API_KEY, SSIBUCHAT_EMAIL_FROM and SSIBUCHAT_APP_URL in the independent deployment.
+- Added authenticated email verification requests and public single-use confirmation, plus generic password-reset requests and single-use password-reset confirmation. Tokens are stored as hashes, expire, and are consumed once; password reset invalidates every active session.
+- New standard/admin accounts start with emailVerified=false. Auth/session responses expose verification status. Security settings can request verification; email links auto-confirm. Sign-in UI supports password recovery request and reset-link completion.
+- Added token TTL/unique indexes and integration tests covering verification, token replay rejection, reset, password hash update and session invalidation using a mocked email provider.
+- Added shared project/task/calendar membership checks and activity events; shared workspace UI now supports invitation acceptance, owner role changes/removal, shared documents, revisions and activity.
+- Latest CI run [44359823249](https://github.com/ssibuchat/ssibuchat/actions/runs/44359823249) passed: npm ci; 37 tests, 0 failures; production audit 0 vulnerabilities; Vite build passed.
+- External acceptance remains: configure and verify the actual Resend sender domain and credentials in staging/production; run real email delivery and account recovery smoke tests. Passkeys, email change and security notifications remain pending.
+
+
+## Finance double-entry ledger increment — 2026-11-18
+
+- Added account catalog with asset/liability/equity/income/expense types and per-account ISO currency.
+- Added balanced journal posting in integer minor units; every line must be a positive debit or credit, each journal must balance, and account ownership/currency is verified.
+- Journal postings are immutable. Idempotency keys are bound to a payload hash; reusing a key with different content returns conflict.
+- Added trial-balance aggregation with normal-balance sign by account type and immutable reversal journals.
+- Added indexes for account codes, journal idempotency and one-reversal-per-original.
+- Added Finance UI for account creation, balanced two-line journal posting, trial balance and reversals.
+- Tests cover unbalanced rejection, balanced posting, idempotent replay, conflicting key reuse, trial balance, reversal and duplicate reversal rejection.
+- Latest GitHub Actions run [44360462995](https://github.com/ssibuchat/ssibuchat/actions/runs/44360462995) passed: npm ci; 38 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Payment/wallet provider integration, external settlement/reconciliation, KYC/AML and licensing remain unimplemented pending provider and jurisdiction approvals.
+
+
+## Phase 1 password security increment — 2026-11-18
+
+- Added authenticated password change requiring the current password and a 12–128 character new password; reuse of the current password is rejected.
+- Password updates use a conditional write to prevent a concurrent change from silently overwriting a newer credential.
+- Successful changes revoke every active session, clear the current session cookie, and write an account-security audit event.
+- A security notice is sent to the verified account email when the transactional email provider is configured. Notification delivery failure does not roll back the credential change and is surfaced in the API response.
+- Added account-security UI and integration tests for incorrect current password, short/reused passwords, credential update, session revocation, audit event and security email.
+- GitHub Actions run [44360720899](https://github.com/ssibuchat/ssibuchat/actions/runs/44360720899) passed on the current branch head: `npm ci`, `npm test`, production dependency audit and Vite production build all succeeded.
+- Phase 1 remains open: passkeys, email-change workflow, complete security notifications for all security events, admin audit interface, real staging acceptance for MongoDB/email/MFA, and browser-level identity recovery verification. Do not treat this increment as Phase 1 completion.
+
+
+## Phase 1 verified email change increment — 2026-11-18
+
+- Added authenticated, rate-limited email-change requests requiring the current password.
+- The proposed address is checked for conflicts and remains unchanged until a one-hour, single-use confirmation token sent to that address is redeemed.
+- Only the token hash is persisted; confirmation marks the new address verified, records an audit event and sends a security notice to the previous address when email delivery is configured.
+- Added account security UI for requesting and completing the email change, plus integration coverage for current-password enforcement, confirmation, replay rejection and prior-address notification.
+- CI evidence for this increment is pending; the previous successful CI run does not cover these latest commits.
+
+
+## Latest Phase 1 / Commerce CI triage — 2026-11-18
+
+- The first CI run covering email-change implementation, [44361231314](https://github.com/ssibuchat/ssibuchat/actions/runs/44361231314), failed at `npm test`: 40 passed and 2 failed.
+- Failure 1 was in the email-change test's confirmation-link token extraction (the test regex captured beyond the token); corrected to stop at whitespace.
+- Failure 2 was a stale Commerce product projection assertion after inventory defaults (`trackInventory: false`, `stockQuantity: 0`) were added; updated the assertion to match the intended server-side defaults.
+- Both corrections are committed. A new CI result for the corrected head has not yet been observed; email-change acceptance remains unverified until the full workflow passes.
+
+
+## Phase 1 / Commerce verification follow-up — 2026-11-18
+
+- CI run [44361477089](https://github.com/ssibuchat/ssibuchat/actions/runs/44361477089) executed 42 tests: 41 passed, 1 failed. The new email-change end-to-end integration test passed, including confirmation and previous-address notification.
+- The remaining failure was the Commerce projection test: the previous correction added inventory defaults to the input fixture rather than asserting the server-generated defaults in the expected projection. The assertion is now corrected so the input omits inventory fields and the expected result includes `trackInventory: false` and `stockQuantity: 0`.
+- Correction commit: `0878ae3528160c88f2850e51a6a2c6765dc0a651`. A full CI run for this exact head is still pending; no passing status is claimed for the corrected head.
+
+
+## Corrected Phase 1 / Commerce CI acceptance — 2026-11-18
+
+- Corrected branch head `198a52b3399e1ddcda01ef7b7693359136a96a29` passed GitHub Actions [run 44361648396](https://github.com/ssibuchat/ssibuchat/actions/runs/44361648396).
+- `npm ci`: passed.
+- `npm test`: **42 passed, 0 failed**, including the verified email-change workflow and product inventory-default projection.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Dependency advisory report step: completed; the development-only picomatch advisory remains documented and unsuppressed.
+- Vite production build: passed.
+- This closes the code-and-CI portion of this email-change increment. It does not close all Phase 1 acceptance: passkeys, full security notifications, admin audit UI, staging/provider verification and browser E2E remain open.
+
+
+## Phase 1 administrative audit interface increment — 2026-11-18
+
+- Added an independent-admin-only `GET /api/admin/audit` endpoint with a bounded 1–100 result limit, newest-first ordering and strict tenant scoping.
+- API serialization allowlists event ID, actor ID, action, target and timestamp; it does not return arbitrary audit documents or credentials.
+- Added an admin UI for viewing recent audit events and tests for tenant isolation, field allowlisting, result bounds and non-admin denial.
+- CI for this new audit-interface increment is pending; the earlier 42/42 pass does not cover these latest changes.
+
+
+## Phase 1 administrative audit CI acceptance — 2026-11-18
+
+- GitHub Actions [run 44362043483](https://github.com/ssibuchat/ssibuchat/actions/runs/44362043483) passed on the admin-audit implementation head.
+- `npm ci`: passed.
+- `npm test`: **44 passed, 0 failed**, including tenant-scoped audit API authorization, bounded result limits and field allowlisting.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Vite production build: passed.
+- This closes the code-and-CI portion of the bounded independent-admin audit feed. It does not replace the broader platform governance, immutable audit retention, cross-tenant oversight, export or deletion acceptance criteria.
+
+
+## Phase 1 security notification CI acceptance — 2026-11-18
+
+- GitHub Actions [run 44362314802](https://github.com/ssibuchat/ssibuchat/actions/runs/44362314802) passed on the security-notification implementation head.
+- `npm ci`: passed.
+- `npm test`: **44 passed, 0 failed**, including password-reset security notification assertions and admin audit interface tests.
+- Production dependency audit: passed with zero production dependency vulnerabilities.
+- Vite production build: passed.
+- Password reset and MFA enable/disable now attempt post-event security notices to verified email addresses; failures are non-fatal and the event remains audited. Device-aware sign-in alerts and notification preferences remain open.
+
+
+## Commerce merchant/buyer and inventory increment — 2026-11-18
+
+- Added tenant-scoped storefront directory and product catalog browsing for authenticated buyers.
+- Split buyer order creation from merchant catalog ownership. Orders carry separate buyerId/merchantId and immutable product/price/quantity snapshots.
+- Order creation is idempotent and binds keys to a payload hash; buyers can list their orders and merchants can list/advance fulfillment status.
+- Added merchant inventory controls with stock quantity and tracking flags. Checkout atomically reserves stock; insufficient inventory rejects checkout; pending-order cancellation releases reservations. Checkout failures roll reservations back.
+- Added payment intent records and a test-only sandbox settlement flow. Payment mode defaults to disabled; sandbox settlement requires explicit independent environment flags. No live payment provider, card/mobile-money charge, refund or real-funds movement is implemented.
+- Added Commerce UI for storefront browsing, buyer order creation/checkout, merchant order fulfillment and inventory management.
+- Added tests for buyer/merchant visibility, idempotent order payloads, stock reservations, insufficient stock, cancellation release, sandbox-disabled behavior and idempotent sandbox settlement.
+- Latest GitHub Actions run [44362371320](https://github.com/ssibuchat/ssibuchat/actions/runs/44362371320) passed: npm ci; 44 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- External payment provider selection, provider credentials, signed webhook validation, refunds and reconciliation remain open.
+
+
+## Latest independent branch validation — 2026-11-18
+
+- Latest code-bearing head `5570c71ffeb3e1acd6921308619eb8144616ca23` passed GitHub Actions [run 44362371320](https://github.com/ssibuchat/ssibuchat/actions/runs/44362371320): `npm ci`; **44 tests passed, 0 failed**; production dependency audit passed; Vite production build passed.
+- The subsequent branch head `64ca7e8cc7c97e6011d3e619a04ef4ff2d76d5b2` adds only implementation-status documentation; no application-code changes were made after the validated code-bearing head at the time of this record.
+
+
+## Media binary upload foundation — 2026-11-18
+
+- Added AWS Signature Version 4 presigned PUT/HEAD/GET URL signing for HTTPS S3-compatible object storage (AWS S3/Cloudflare R2-compatible endpoint).
+- Added private upload flow with generated tenant/user-scoped object keys, allowlisted image/audio/video/PDF MIME types, per-type size caps and signed Content-Type header.
+- Completion verifies object existence, exact Content-Length and Content-Type with a signed HEAD request.
+- Added malware-scanner adapter boundary. Only scanner result status=clean changes asset status to available; absent/unavailable scanner leaves pending_scan and download endpoint denies access.
+- Added private signed downloads restricted to the asset owner and tenant, storage key/ownership indexes, UI direct upload, scan status and open controls.
+- Tests cover SigV4 signature shape, signed content type/expiry, successful scan-gated availability, private downloads and fail-closed behavior when scanner is not configured.
+- Latest GitHub Actions run [44362880353](https://github.com/ssibuchat/ssibuchat/actions/runs/44362880353) passed: npm ci; 47 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Deployment still requires S3-compatible endpoint/bucket/credentials and a malware-scanner URL/token. Transcoding, thumbnail generation, deletion/retention, quotas and production object-store smoke tests remain open.
+
+
+## Calls/WebRTC direct-call increment — 2026-11-18
+
+- Added authenticated call creation from an existing Connect thread, with 2–8 thread participants, audio/video media type, invited/joined/left participant state and one-hour call expiry.
+- Added participant-only offer/answer/ICE/candidate/hangup signaling, recipient-scoped retrieval, payload size limits, rate limits and ten-minute signal TTL.
+- Added direct one-to-one browser audio/video call UI: microphone/camera acquisition, RTCPeerConnection, SDP offer/answer, ICE exchange, remote media playback, incoming call polling and hangup/track cleanup.
+- Browser ICE server configuration is exposed through VITE_SSIBUCHAT_ICE_SERVERS_JSON; a public STUN fallback is used if no list is configured.
+- Tests cover call membership, join, offer signal routing, oversized payload rejection, leave and end lifecycle.
+- Latest GitHub Actions run [44363979047](https://github.com/ssibuchat/ssibuchat/actions/runs/44363979047) passed: npm ci; 48 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- Remaining Calls acceptance: production TURN relay deployment, push/realtime signaling workers (client currently polls), group-call media topology, reconnect/QoS and browser/device end-to-end testing. No production call acceptance has been performed.
+
+
+## Durable outbox worker invocation — 2026-11-18
+
+- Wired the existing leased outbox dispatcher into `POST /api/internal/workers/outbox`.
+- The worker route is exempted from browser Origin checks only because it requires a configured high-entropy bearer secret and constant-time comparison; no session cookie or admin role can invoke it.
+- Batch size is bounded to 1–100 (default 50); worker returns claimed/processed/retried/dead-lettered/skipped counts.
+- Added `SSIBUCHAT_WORKER_SECRET` to the independent deployment environment template.
+- Added route tests for unauthorized rejection and authorized bounded execution.
+- Existing worker tests cover idempotent recipient fan-out, leases, retry/backoff and dead-letter behavior.
+- GitHub Actions run [44473607639](https://github.com/ssibuchat/ssibuchat/actions/runs/44473607639) passed: npm ci; 50 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- This does not mean scheduled invocation is live: configure a scheduler/cron with the same secret only after Vercel plan, project and environment are verified. Delivery jobs still need a push/email/SMS provider consumer and callbacks.
+
+## Current Calls and Media status correction
+
+- Media: S3-compatible SigV4 private upload/download, ownership validation, object HEAD verification and fail-closed malware scanning are implemented and tested. Production provider configuration, transcoding, thumbnails, quotas, retention and lifecycle acceptance remain outstanding.
+- Calls: participant-authorized WebRTC signaling and direct browser audio/video UI are implemented and tested. Production TURN, realtime push, group-call media, reconnect/QoS and device acceptance remain outstanding.
+
+
+## Work collaboration increment — 2026-11-18
+
+- Existing shared workspace APIs were reviewed and verified: expiring hashed invitations, owner/editor/viewer membership, role change/removal, versioned shared documents, revision history and activity feed.
+- Added member-visible document comments with per-workspace/document scoping, 4,000-character bounds, write throttling and activity events.
+- Added MongoDB index for workspace document comment retrieval.
+- Added integration test covering viewer comment permission, document comment retrieval and activity event recording.
+- GitHub Actions run [44474063932](https://github.com/ssibuchat/ssibuchat/actions/runs/44474063932) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite production build passed.
+- Remaining Work scope: shared file attachments, realtime collaborative editing/presence, shared search, task assignments/mentions/dependencies, calendar recurrence/time-zone/reminders and browser-level collaboration acceptance.
+
+
+## Shared document discussion UI — 2026-11-18
+
+- Added discussion display and comment submission to the Work shared-document panel.
+- Opening a document fetches its current content and workspace-scoped comments; member users, including viewers, can contribute comments without gaining document edit permissions.
+- UI changes were included in GitHub Actions run [44474347669](https://github.com/ssibuchat/ssibuchat/actions/runs/44474347669), which passed npm ci, 51 tests, production dependency audit (0 vulnerabilities) and Vite production build.
+
+
+## Finance ledger concurrency hardening — 2026-11-18
+
+- Hardened immutable journal reversal against concurrent duplicate requests. The unique reversal index remains authoritative; a duplicate-key race is translated into a deterministic 409 response containing the existing reversal identifier rather than surfacing as an internal server error.
+- Added a test that simulates the race between the initial existence check and unique-index insert.
+- GitHub Actions run [44474559418](https://github.com/ssibuchat/ssibuchat/actions/runs/44474559418) passed: npm ci; 51 tests, 0 failures; production dependency audit 0 vulnerabilities; Vite build passed.
+- The ledger is a double-entry bookkeeping foundation with balanced journals, trial balance and reversals; it is not a wallet, bank account, payment rail or licensed financial service.
+
+
+## Independent MAC configuration vault increment — 2026-11-19
+
+- Added an admin-only infrastructure configuration panel to the independent SsibuChat administration surface.
+- Added an AES-256-GCM encrypted configuration vault. The encryption key is a dedicated 32-byte base64 secret, `SSIBUCHAT_CONFIG_ENCRYPTION_KEY`, held only in the independent deployment environment.
+- Added write-only configuration APIs: list metadata, create/rotate encrypted values, and delete values. Plaintext values and ciphertext are not returned by the admin listing API.
+- Added encrypted version history and audit events; supported destination labels include runtime, GitHub Actions, Vercel, Namecheap, Bluehost and other providers.
+- Added a server-only runtime configuration reader and cryptographic tests for round-trip encryption, tamper rejection and fail-closed missing/invalid keys.
+- **Not yet complete:** provider API adapters and actual synchronization, live runtime adoption across existing modules, key provisioning/rotation recovery, and production MAC acceptance. Provider-target records explicitly remain `pending_provider_adapter`; this code does not claim to set provider secrets.
+
+
+## Independent MAC route — 2026-11-19
+
+- Added the canonical independent management console at `/mac`, with production path `https://ssibuchat.vercel.app/mac` after merge and deployment.
+- The console checks the independent session and requires `role: "admin"`; it exposes independent tester governance, encrypted configuration inventory and recent administrative audit events.
+- Added administrator navigation from the independent application and documented the route in `docs/MAC.md`.
+- PTU-hosted SsibuChat and PTU MAC remain isolated and unchanged by this increment.
+- Current branch head `e0e3f2306a598ca69a4006b9a9c5c365788b6a55` passed GitHub Actions run [44541163718](https://github.com/ssibuchat/ssibuchat/actions/runs/44541163718): dependency installation, test suite, production dependency audit and Vite build all passed.
+- PR #2 remains open and draft. No merge or production deployment occurred. The MAC route has not yet been tested with a live independent production administrator session.
+
+
+## Live runtime configuration adoption — 2026-11-19
+
+- Migrated independent account transactional email to read active encrypted runtime configuration at send time.
+- Runtime keys adopted: `RESEND_API_KEY`, `SSIBUCHAT_EMAIL_FROM`, `SSIBUCHAT_APP_URL`.
+- Runtime values override environment bootstrap values; environment fallback remains available when the vault encryption key is absent.
+- Production, preview and local-development scopes are selected separately.
+- Added tests for environment fallback and encrypted live-value precedence.
+- Not yet CI-verified at this point in the change sequence; GitHub Actions validation is required before acceptance.
+- Other service modules and external provider adapters have not yet been migrated.
+
+
+## Media runtime configuration adoption — 2026-11-19
+
+- Migrated independent media upload, completion, download and deletion operations to resolve active encrypted runtime values.
+- Adopted keys: `SSIBUCHAT_S3_ENDPOINT`, `SSIBUCHAT_S3_BUCKET`, `SSIBUCHAT_S3_REGION`, `SSIBUCHAT_S3_ACCESS_KEY_ID`, `SSIBUCHAT_S3_SECRET_ACCESS_KEY`, optional `SSIBUCHAT_S3_SESSION_TOKEN`, `SSIBUCHAT_MEDIA_SCAN_URL` and `SSIBUCHAT_MEDIA_SCAN_TOKEN`.
+- Added tests for environment fallback, encrypted runtime precedence, storage readiness and signed upload URL generation.
+- Account-email runtime configuration passed CI at [run 44541831135](https://github.com/ssibuchat/ssibuchat/actions/runs/44541831135). The media runtime increment passed dependency installation, tests, production dependency audit and build at [run 44542043157](https://github.com/ssibuchat/ssibuchat/actions/runs/44542043157).
+- Real provider provisioning, scanner acceptance, transcoding, thumbnails, CDN and retention remain outstanding.
+
+
+## Scheduled outbox endpoint alignment — 2026-11-19
+
+- Corrected a production-blocking mismatch: the GitHub Actions workflow targeted `/api/cron/outbox` with `CRON_SECRET`, while the server previously exposed only `/api/internal/workers/outbox` guarded by `SSIBUCHAT_WORKER_SECRET`.
+- The server now exposes the canonical `POST /api/cron/outbox` and authenticates it with `CRON_SECRET`, matching the workflow and the independent Vercel Production secret name. The legacy internal endpoint remains as a compatibility alias.
+- The workflow now validates that `SSIBUCHAT_CRON_URL` is an HTTPS URL ending in `/api/cron/outbox`.
+- Added route tests for valid and invalid cron authentication.
+- This is not yet operationally active: PR changes must reach `main`, `SSIBUCHAT_CRON_URL` and matching `CRON_SECRET` values must be configured in GitHub Actions and independent Vercel Production, and a production dispatch must be verified.
+- The scheduler endpoint, workflow validation and route-authentication tests passed CI at [run 44542298850](https://github.com/ssibuchat/ssibuchat/actions/runs/44542298850), including `npm test`, production dependency audit and build.
+
+
+## In-app notification delivery increment — 2026-11-19
+
+- Extended the accepted-message outbox fan-out to create an idempotent notification record per recipient, in addition to the existing durable provider delivery job.
+- Added tenant/user-scoped MongoDB indexes and authenticated APIs: `GET /api/notifications` (bounded list and unread count), `PATCH /api/notifications/:id/read`, and `PATCH /api/notifications/read-all`.
+- Added tests for recipient notification creation, preview content, inbox isolation and read-state ownership.
+- This is an in-app inbox consumer, not a push-provider or realtime implementation. Push delivery adapters, delivery preferences, callbacks, realtime transport and mobile push remain outstanding.
+- CI passed at [run 44545085803](https://github.com/ssibuchat/ssibuchat/actions/runs/44545085803): installation, complete tests, production dependency audit and Vite build.
+
+## Cron serverless method correction — 2026-11-19
+
+- The dedicated Vercel `api/cron/outbox.js` handler and GitHub Actions scheduler now both use authenticated `POST` with a JSON batch limit, rather than side-effecting `GET`.
+- Added serverless-handler method/authentication tests and aligned prior route tests with POST semantics.
+- CI passed at [run 44544605002](https://github.com/ssibuchat/ssibuchat/actions/runs/44544605002): installation, tests, production dependency audit and build.
+
+
+## Connect notification inbox UI increment — 2026-11-20
+
+- Added an authenticated notification bell to the independent application header, showing unread count and a responsive recent-notification panel.
+- Added individual notification open/read handling, mark-all-read action, 30-second inbox refresh while signed in, and empty/error states.
+- Reused the existing tenant/user-scoped notification APIs; no PTU identity or MAC dependency was introduced.
+- GitHub Actions CI [run 44865974133](https://github.com/ssibuchat/ssibuchat/actions/runs/44865974133) passed: `npm ci`, `npm test`, production dependency audit and `npm run build`.
+- Browser-level interaction, screen-reader/accessibility and realtime/push acceptance remain open; this increment is not production deployment evidence.
+
+
+## Notification navigation correctness follow-up — 2026-11-20
+
+- Notification selection now resolves its destination thread from the freshly fetched thread list rather than potentially stale React state.
+- GitHub Actions [run 44866089989](https://github.com/ssibuchat/ssibuchat/actions/runs/44866089989) passed on code head `9e134e92cbbdd60725cc87bf9f3e9f5cca2a34a1`: `npm ci`, `npm test`, production dependency audit and `npm run build`.
+- This validates automated tests/build only; browser E2E and accessibility testing are still required.

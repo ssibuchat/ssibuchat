@@ -428,3 +428,12 @@ This branch is under review and must pass the repository's complete CI workflow 
 - The dedicated Vercel `api/cron/outbox.js` handler and GitHub Actions scheduler now both use authenticated `POST` with a JSON batch limit, rather than side-effecting `GET`.
 - Added serverless-handler method/authentication tests and aligned prior route tests with POST semantics.
 - CI passed at [run 44544605002](https://github.com/ssibuchat/ssibuchat/actions/runs/44544605002): installation, tests, production dependency audit and build.
+
+
+## Connect notification inbox UI increment — 2026-11-20
+
+- Added an authenticated notification bell to the independent application header, showing unread count and a responsive recent-notification panel.
+- Added individual notification open/read handling, mark-all-read action, 30-second inbox refresh while signed in, and empty/error states.
+- Reused the existing tenant/user-scoped notification APIs; no PTU identity or MAC dependency was introduced.
+- GitHub Actions CI [run 44865974133](https://github.com/ssibuchat/ssibuchat/actions/runs/44865974133) passed: `npm ci`, `npm test`, production dependency audit and `npm run build`.
+- Browser-level interaction, screen-reader/accessibility and realtime/push acceptance remain open; this increment is not production deployment evidence.
